@@ -1,0 +1,17 @@
+name: stock-valuator
+channels:
+  - defaults
+dependencies:
+  - python=3.10
+  - pip
+  - nodejs
+  - pip:
+      - fastapi
+      - uvicorn
+      - sqlalchemy
+      - psycopg2-binary
+      - redis
+      - celery
+      - python-dotenv
+      - yfinance
+      - playwright

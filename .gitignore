@@ -1,0 +1,25 @@
+# IDE and OS files
+.vscode/
+.idea/
+.DS_Store
+*.swp
+
+# Python backend
+__pycache__/
+*.pyc
+.env
+/backend/stock_valuator.db
+/backend/celerybeat-schedule
+
+# Node.js frontend
+/frontend/node_modules
+/frontend/.next
+/frontend/out
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Build artifacts
+build/
+dist/
