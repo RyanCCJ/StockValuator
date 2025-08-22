@@ -23,3 +23,7 @@ pnpm-debug.log*
 # Build artifacts
 build/
 dist/
+
+# Test app node_modules
+/test-next-app/node_modules
+/test-next-app/.next
