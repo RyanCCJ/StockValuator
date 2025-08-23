@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import Optional
+from fastapi.middleware.cors import CORSMiddleware
 
 from . import models
 from .database import engine, get_db
@@ -15,6 +16,22 @@ app = FastAPI(
     description="API for stock valuation and portfolio tracking.",
     version="0.1.0",
 )
+
+# Set up CORS
+origins = [
+    "http://localhost",
+    "http://localhost:3000",
+    "http://192.168.0.116:3000",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 @app.get("/")
 def read_root():
