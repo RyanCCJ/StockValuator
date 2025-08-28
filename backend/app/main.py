@@ -2,10 +2,11 @@ from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import Optional
 from fastapi.middleware.cors import CORSMiddleware
+import asyncio
 
 from . import models
 from .database import engine, get_db
-from .services import finance_api, scraper_service
+from .services import finance_api, scraper_service, analysis_service
 from .tasks import update_finviz_data
 
 # Create the database tables if they don't exist
@@ -62,7 +63,7 @@ def test_db_connection(db: Session = Depends(get_db)):
 
 # --- Stock Data Endpoints ---
 
-@app.get("/stock/{ticker}/price")
+@app.get("/api/v1/stock/{ticker}/price")
 def get_price(ticker: str):
     """
     Get current price information for a given stock ticker.
@@ -76,7 +77,7 @@ def get_price(ticker: str):
         raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {e}")
 
 
-@app.get("/stock/{ticker}/kline")
+@app.get("/api/v1/stock/{ticker}/kline")
 def get_kline(ticker: str, period: Optional[str] = "6mo", interval: Optional[str] = "1d"):
     """
     Get historical K-line data for a given stock ticker.
@@ -91,25 +92,66 @@ def get_kline(ticker: str, period: Optional[str] = "6mo", interval: Optional[str
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {e}")
 
-# --- Scraper Endpoint ---
+# --- Scraper and Analysis Endpoint ---
 
-@app.get("/stock/{ticker}/finviz")
-async def get_finviz(ticker: str):
+@app.get("/api/v1/stock/{ticker}/analysis")
+async def get_stock_analysis(ticker: str):
     """
-    Get fundamental data from Finviz for a given stock ticker.
-    This is an async endpoint because it uses a web scraper.
+    Get a full fundamental analysis for a stock, including scores and valuation.
     """
     try:
-        finviz_data = await scraper_service.get_finviz_data(ticker)
-        return finviz_data
+        # Run scrapers concurrently
+        results = await asyncio.gather(
+            scraper_service.get_finviz_data(ticker),
+            scraper_service.get_roic_data(ticker),
+            return_exceptions=True
+        )
+        
+        finviz_data, roic_df = None, None
+        for result in results:
+            if isinstance(result, dict):
+                finviz_data = result
+            elif isinstance(result, Exception):
+                 raise HTTPException(status_code=500, detail=f"An error occurred during scraping: {result}")
+            else: # It's the DataFrame
+                roic_df = result
+
+        if finviz_data is None or roic_df is None:
+            raise HTTPException(status_code=500, detail="Failed to retrieve all necessary data.")
+
+        # --- Placeholder Inputs ---
+        # These would eventually come from a user profile or a global config
+        manual_inputs = {'economic_moat': 2, 'environment_risk': -1}
+        sp500_yield = 1.5 # Placeholder S&P 500 yield
+        user_assumptions = {'dividend_required_return': 0.04, 'asset_pb_threshold': 0.8}
+        
+        # --- Run Analysis ---
+        confidence_results = analysis_service.calculate_confidence_score(roic_df, finviz_data, manual_inputs)
+        dividend_results = analysis_service.calculate_dividend_score(roic_df, finviz_data)
+        value_results = analysis_service.calculate_value_score(roic_df, finviz_data, sp500_yield)
+        fair_value_estimates = analysis_service.estimate_fair_value(roic_df, finviz_data, confidence_results, dividend_results, user_assumptions)
+
+        return {
+            "ticker": ticker,
+            "finviz_data": finviz_data,
+            "roic_data_summary": roic_df.to_dict(orient='records'),
+            "analysis_scores": {
+                "confidence": confidence_results,
+                "dividend": dividend_results,
+                "value": value_results
+            },
+            "fair_value": fair_value_estimates
+        }
+
     except scraper_service.ScraperError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {e}")
+        raise HTTPException(status_code=500, detail=f"An unexpected error occurred in the analysis endpoint: {e}")
+
 
 # --- Background Task Endpoint ---
 
-@app.post("/stock/{ticker}/update-finviz-background")
+@app.post("/api/v1/stock/{ticker}/update-finviz-background")
 def trigger_finviz_update(ticker: str):
     """
     Triggers a background task to scrape data from Finviz.

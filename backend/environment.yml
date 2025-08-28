@@ -15,3 +15,7 @@ dependencies:
       - python-dotenv
       - yfinance
       - playwright
+      - pandas
+      - scipy
+      - numpy
+      - async-lru
