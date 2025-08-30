@@ -22,7 +22,6 @@ app = FastAPI(
 origins = [
     "http://localhost",
     "http://localhost:3000",
-    "http://192.168.0.116:3000",
 ]
 
 app.add_middleware(
@@ -102,39 +101,38 @@ async def get_stock_analysis(ticker: str):
     try:
         # Run scrapers concurrently
         results = await asyncio.gather(
-            scraper_service.get_finviz_data(ticker),
-            scraper_service.get_roic_data(ticker),
+            scraper_service.get_key_metrics_data(ticker),
+            scraper_service.get_financial_statements_data(ticker),
             return_exceptions=True
         )
         
-        finviz_data, roic_df = None, None
+        key_metrics_data, financial_statements_df = None, None
         for result in results:
             if isinstance(result, dict):
-                finviz_data = result
+                key_metrics_data = result
             elif isinstance(result, Exception):
                  raise HTTPException(status_code=500, detail=f"An error occurred during scraping: {result}")
             else: # It's the DataFrame
-                roic_df = result
+                financial_statements_df = result
 
-        if finviz_data is None or roic_df is None:
+        if key_metrics_data is None or financial_statements_df is None:
             raise HTTPException(status_code=500, detail="Failed to retrieve all necessary data.")
 
         # --- Placeholder Inputs ---
-        # These would eventually come from a user profile or a global config
         manual_inputs = {'economic_moat': 2, 'environment_risk': -1}
         sp500_yield = 1.5 # Placeholder S&P 500 yield
         user_assumptions = {'dividend_required_return': 0.04, 'asset_pb_threshold': 0.8}
         
         # --- Run Analysis ---
-        confidence_results = analysis_service.calculate_confidence_score(roic_df, finviz_data, manual_inputs)
-        dividend_results = analysis_service.calculate_dividend_score(roic_df, finviz_data)
-        value_results = analysis_service.calculate_value_score(roic_df, finviz_data, sp500_yield)
-        fair_value_estimates = analysis_service.estimate_fair_value(roic_df, finviz_data, confidence_results, dividend_results, user_assumptions)
+        confidence_results = analysis_service.calculate_confidence_score(financial_statements_df, key_metrics_data, manual_inputs)
+        dividend_results = analysis_service.calculate_dividend_score(financial_statements_df, key_metrics_data)
+        value_results = analysis_service.calculate_value_score(financial_statements_df, key_metrics_data, sp500_yield)
+        fair_value_estimates = analysis_service.estimate_fair_value(financial_statements_df, key_metrics_data, confidence_results, dividend_results, user_assumptions)
 
         return {
             "ticker": ticker,
-            "finviz_data": finviz_data,
-            "roic_data_summary": roic_df.to_dict(orient='records'),
+            "key_metrics": key_metrics_data,
+            "financial_statements": financial_statements_df.to_dict(orient='records'),
             "analysis_scores": {
                 "confidence": confidence_results,
                 "dividend": dividend_results,
@@ -151,11 +149,12 @@ async def get_stock_analysis(ticker: str):
 
 # --- Background Task Endpoint ---
 
-@app.post("/api/v1/stock/{ticker}/update-finviz-background")
-def trigger_finviz_update(ticker: str):
+@app.post("/api/v1/stock/{ticker}/update-metrics-background")
+def trigger_metrics_update(ticker: str):
     """
-    Triggers a background task to scrape data from Finviz.
+    Triggers a background task to scrape key metrics data.
     Returns immediately with a task ID.
     """
+    # Note: The task itself would need to be updated to a generic name if it's being used.
     task = update_finviz_data.delay(ticker)
-    return {"message": "Finviz update task has been queued.", "task_id": task.id}
+    return {"message": "Metrics update task has been queued.", "task_id": task.id}

@@ -29,12 +29,12 @@ def _sanitize_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     return df_sanitized
 
 def calculate_confidence_score(
-    roic_df: pd.DataFrame, 
-    finviz_data: Dict[str, Any], 
+    financial_statements_df: pd.DataFrame, 
+    key_metrics_data: Dict[str, Any], 
     manual_inputs: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Calculates the 'Confidence Score' based on fundamental data."""
-    df = _sanitize_dataframe(roic_df)
+    df = _sanitize_dataframe(financial_statements_df)
     scores = {
         'eps_trend': 0,
         'dividend_consistency': 0,
@@ -71,7 +71,7 @@ def calculate_confidence_score(
             scores['roe_quality'] = 1
 
     # 5. Interest Coverage
-    interest_coverage_str = finviz_data.get('Interest Cover', '0')
+    interest_coverage_str = key_metrics_data.get('Interest Cover', '0')
     if interest_coverage_str == '-': # No debt
         scores['interest_coverage'] = 1
     else:
@@ -82,7 +82,7 @@ def calculate_confidence_score(
             scores['interest_coverage'] = 0.5
 
     # 6. Net Margin
-    net_margin = _safe_float(finviz_data.get('Profit Margin'))
+    net_margin = _safe_float(key_metrics_data.get('Profit Margin'))
     if net_margin > 20:
         scores['net_margin'] = 1
     elif net_margin > 10:
@@ -102,11 +102,11 @@ def calculate_confidence_score(
     return {'total_score': total_score, 'breakdown': scores}
 
 def calculate_dividend_score(
-    roic_df: pd.DataFrame, 
-    finviz_data: Dict[str, Any]
+    financial_statements_df: pd.DataFrame, 
+    key_metrics_data: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Calculates the 'Dividend Score' based on dividend history and financial health."""
-    df = _sanitize_dataframe(roic_df)
+    df = _sanitize_dataframe(financial_statements_df)
     scores = {
         'dividend_growth_years': 0,
         'dividend_growth_rate_5y': 0,
@@ -197,16 +197,16 @@ def calculate_dividend_score(
         elif debt_ratio > 0.5: scores['debt_ratio'] = -1
 
     # 10. Beta
-    beta = _safe_float(finviz_data.get('Beta'))
+    beta = _safe_float(key_metrics_data.get('Beta'))
     if beta <= 1.2 and beta > 0:
         scores['beta'] = 1
     
     total_score = sum(scores.values())
     return {'total_score': total_score, 'breakdown': scores}
 
-def _calculate_piotroski_f_score(roic_df: pd.DataFrame, finviz_data: Dict[str, Any]) -> int:
+def _calculate_piotroski_f_score(financial_statements_df: pd.DataFrame, key_metrics_data: Dict[str, Any]) -> int:
     """Calculates the Piotroski F-Score."""
-    df = _sanitize_dataframe(roic_df)
+    df = _sanitize_dataframe(financial_statements_df)
     if len(df.dropna(subset=['eps', 'bs_sh_out', 'cash_flow_per_sh', 'return_on_asset', 'bs_lt_borrow', 'cur_ratio', 'gross_margin', 'revenue_per_sh', 'book_val_per_sh'])) < 2:
         return 0
     score = 0
@@ -214,12 +214,12 @@ def _calculate_piotroski_f_score(roic_df: pd.DataFrame, finviz_data: Dict[str, A
     return score
 
 def calculate_value_score(
-    roic_df: pd.DataFrame, 
-    finviz_data: Dict[str, Any],
+    financial_statements_df: pd.DataFrame, 
+    key_metrics_data: Dict[str, Any],
     sp500_yield: float
 ) -> Dict[str, Any]:
     """Calculates the 'Value Score' based on valuation metrics."""
-    df = _sanitize_dataframe(roic_df)
+    df = _sanitize_dataframe(financial_statements_df)
     scores = {
         'yield_position': 0,
         'pe_position': 0,
@@ -233,9 +233,9 @@ def calculate_value_score(
         'piotroski_score': 0
     }
     
-    current_price = _safe_float(finviz_data.get('Price'))
-    pe_ratio = _safe_float(finviz_data.get('P/E'))
-    dividend_yield = _safe_float(finviz_data.get('Dividend %'))
+    current_price = _safe_float(key_metrics_data.get('Price'))
+    pe_ratio = _safe_float(key_metrics_data.get('P/E'))
+    dividend_yield = _safe_float(key_metrics_data.get('Dividend %'))
     
     # Dividend-dependent calculations
     if 'div_per_shr' in df.columns and not df['div_per_shr'].dropna().empty and current_price > 0:
@@ -281,21 +281,21 @@ def calculate_value_score(
         if df['return_com_eqy'].mean() > 20: scores['pe_roe_combo'] = 1
 
     if len(df) >= 2:
-        piotroski_score = _calculate_piotroski_f_score(df, finviz_data)
+        piotroski_score = _calculate_piotroski_f_score(df, key_metrics_data)
         if piotroski_score > 5: scores['piotroski_score'] = 1
 
     total_score = sum(scores.values())
     return {'total_score': total_score, 'breakdown': scores}
 
 def estimate_fair_value(
-    roic_df: pd.DataFrame,
-    finviz_data: Dict[str, Any],
+    financial_statements_df: pd.DataFrame,
+    key_metrics_data: Dict[str, Any],
     confidence_results: Dict[str, Any],
     dividend_results: Dict[str, Any],
     user_assumptions: Dict[str, float]
 ) -> Dict[str, Any]:
     """Estimates fair value based on different models."""
-    df = _sanitize_dataframe(roic_df)
+    df = _sanitize_dataframe(financial_statements_df)
     results = {
         'growth_value': {'value': None, 'reason': 'N/A'},
         'dividend_value': {'value': None, 'reason': 'N/A'},
@@ -306,8 +306,8 @@ def estimate_fair_value(
     if confidence_results.get('breakdown', {}).get('eps_trend', 0) <= 0:
         results['growth_value']['reason'] = 'EPS trend is not positive.'
     else:
-        eps = _safe_float(finviz_data.get('EPS next Y'))
-        g_str = finviz_data.get('EPS next 5Y', '0%')
+        eps = _safe_float(key_metrics_data.get('EPS next Y'))
+        g_str = key_metrics_data.get('EPS next 5Y', '0%')
         g = _safe_float(g_str) / 100
         if eps <= 0 or g <= 0:
             results['growth_value']['reason'] = 'Forward EPS or growth rate is not positive.'
@@ -320,7 +320,7 @@ def estimate_fair_value(
     if confidence_results.get('breakdown', {}).get('dividend_consistency', 0) <= 0:
         results['dividend_value']['reason'] = 'Not a consistent dividend payer.'
     else:
-        d0 = _safe_float(finviz_data.get('Dividend'))
+        d0 = _safe_float(key_metrics_data.get('Dividend'))
         r = user_assumptions.get('dividend_required_return', 0.04)
         if d0 <= 0 or r <= 0:
             results['dividend_value']['reason'] = 'Invalid dividend or required return.'
@@ -329,8 +329,8 @@ def estimate_fair_value(
             results['dividend_value']['reason'] = 'Calculated successfully.'
 
     # 3. Asset Stock Valuation
-    pb_ratio = _safe_float(finviz_data.get('P/B'))
-    book_value_per_share = _safe_float(finviz_data.get('Book/sh'))
+    pb_ratio = _safe_float(key_metrics_data.get('P/B'))
+    book_value_per_share = _safe_float(key_metrics_data.get('Book/sh'))
     pb_threshold = user_assumptions.get('asset_pb_threshold', 0.8)
     if pb_ratio <= 0 or book_value_per_share <= 0:
         results['asset_value']['reason'] = 'P/B ratio or Book Value is not positive.'

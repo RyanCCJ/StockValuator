@@ -3,6 +3,7 @@
 import React from 'react';
 import { useTickerStore } from '@/store/tickerStore';
 import { cn } from '@/lib/utils';
+import { ThemeToggle } from './ThemeToggle';
 
 const Header = () => {
   const { activePage, setActivePage } = useTickerStore();
@@ -27,6 +28,7 @@ const Header = () => {
             {item}
           </button>
         ))}
+        <ThemeToggle />
       </nav>
     </header>
   );

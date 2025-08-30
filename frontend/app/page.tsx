@@ -3,14 +3,8 @@
 import Layout from "@/components/Layout";
 import Dashboard from "@/components/Dashboard";
 import { Analysis } from "@/components/Analysis";
+import { Portfolio } from "@/components/Portfolio"; // Import the real component
 import { useTickerStore } from "@/store/tickerStore";
-
-// A simple component for the placeholder portfolio page
-const Portfolio = () => (
-  <div className="flex items-center justify-center h-96 border-2 border-dashed rounded-lg">
-    <p className="text-muted-foreground">Portfolio Page - Coming Soon</p>
-  </div>
-);
 
 const PageContent = () => {
   const { activePage } = useTickerStore();

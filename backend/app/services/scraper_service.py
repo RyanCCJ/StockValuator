@@ -1,6 +1,7 @@
 import asyncio
 import json
 import re
+import os
 import pandas as pd
 from playwright.async_api import async_playwright
 from async_lru import alru_cache
@@ -10,14 +11,12 @@ class ScraperError(Exception):
     pass
 
 @alru_cache(maxsize=32)
-async def get_roic_data(ticker: str) -> pd.DataFrame:
-    """
-    Scrapes 10 years of financial data from roic.ai for a given ticker.
-    Uses async playwright to handle dynamic JavaScript-loaded content.
-    Caches results to avoid repeated scraping.
-    """
-    #url = f"https://roic.ai/company/{ticker}"
-    url = f"https://roic.ai/quote/{ticker}/ratios?period=annual"
+async def get_financial_statements_data(ticker: str) -> pd.DataFrame:
+    """Fetches 10 years of financial data from a source."""
+    url_template = os.getenv("DATA_SOURCE_TWO_URL")
+    if not url_template:
+        raise ScraperError("DATA_SOURCE_TWO_URL environment variable not set.")
+    url = url_template.format(ticker=ticker)
     
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
@@ -48,33 +47,31 @@ async def get_roic_data(ticker: str) -> pd.DataFrame:
             if not financial_data:
                 # --- START DEBUGGING CODE ---
                 page_content = await page.content()
-                debug_file_path = f"roic_debug_{ticker}.html"
+                debug_file_path = f"debug_{ticker}.html"
                 with open(debug_file_path, "w", encoding="utf-8") as f:
                     f.write(page_content)
                 print(f"DEBUG: Saved page content for {ticker} to {debug_file_path}")
                 # --- END DEBUGGING CODE ---
-                raise ScraperError(f"Could not find or parse financial data for '{ticker}' on roic.ai. A debug file has been saved to the backend container.")
+                raise ScraperError(f"Could not find or parse financial data from '{ticker}'. A debug file has been saved to the backend container.")
 
             df = pd.DataFrame(financial_data)
             df = df.sort_values('fiscal_year').tail(10).reset_index(drop=True)
             return df
 
         except Exception as e:
-            print(f"An error occurred during scraping roic.ai for {ticker}: {e}")
-            raise ScraperError(f"Failed to scrape data for {ticker} from roic.ai.")
+            print(f"An error occurred during data source 2 scraping for {ticker}: {e}")
+            raise ScraperError(f"Failed to scrape data for {ticker} from data source 2.")
         finally:
             await context.close()
-            await browser.close()
-
+            await browser.close()      
 
 @alru_cache(maxsize=32)
-async def get_finviz_data(ticker: str) -> dict:
-    """
-    Scrapes the main financial table from Finviz for a given ticker.
-    Uses async playwright for non-blocking web access.
-    Caches results to avoid repeated scraping.
-    """
-    url = f"https://finviz.com/quote.ashx?t={ticker}"
+async  def get_key_metrics_data(ticker: str) -> dict:
+    """Fetches key metrics from a source."""
+    url_template = os.getenv("DATA_SOURCE_ONE_URL")
+    if not url_template:
+        raise ScraperError("DATA_SOURCE_ONE_URL environment variable not set.")
+    url = url_template.format(ticker=ticker)
     
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
@@ -89,11 +86,11 @@ async def get_finviz_data(ticker: str) -> dict:
             
             not_found_element = await page.query_selector('td.body-text b:has-text("Stock not found!")')
             if not_found_element:
-                raise ScraperError(f"Ticker '{ticker}' not found on Finviz.")
+                raise ScraperError(f"Ticker '{ticker}' not found on data source 1.")
 
             tables = await page.query_selector_all('.snapshot-table2')
             if not tables:
-                raise ScraperError(f"Could not find the data table for '{ticker}' on Finviz.")
+                raise ScraperError(f"Could not find the data table for '{ticker}' on data source 1.")
 
             data = {}
             rows = await tables[0].query_selector_all('tr')
@@ -110,13 +107,13 @@ async def get_finviz_data(ticker: str) -> dict:
                         data[key] = value
             
             if not data:
-                raise ScraperError(f"Extracted data is empty for '{ticker}' from Finviz.")
+                raise ScraperError(f"Extracted data is empty for '{ticker}' from data source 1.")
 
             return data
 
         except Exception as e:
-            print(f"An error occurred during scraping Finviz for {ticker}: {e}")
-            raise ScraperError(f"Failed to scrape data for {ticker} from Finviz.")
+            print(f"An error occurred during data source 1 scraping for {ticker}: {e}")
+            raise ScraperError(f"Failed to scrape data for {ticker} from data source 1.")
         finally:
             await context.close()
             await browser.close()

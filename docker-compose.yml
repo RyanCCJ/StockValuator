@@ -33,7 +33,7 @@ services:
     build: ./backend
     container_name: stock_valuator_backend
     env_file:
-      - ./backend/.env
+      - .env
     ports:
       - "8000:8000"
     volumes:

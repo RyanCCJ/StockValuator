@@ -34,6 +34,11 @@ export interface AnalysisData {
   fair_value: FairValue;
 }
 
+export interface Holding {
+  shares: number;
+  averagePrice: number;
+}
+
 // --- Zustand Store Definition ---
 
 interface TickerState {
@@ -43,11 +48,16 @@ interface TickerState {
   isLoading: boolean;
   error: string | null;
   activePage: string;
+  holdings: { [ticker: string]: Holding };
+  totalAssets: number;
   setSelectedTicker: (ticker: string) => void;
   fetchAnalysis: (ticker: string) => Promise<void>;
   addTickerToWatchlist: (ticker: string) => void;
   removeTickerFromWatchlist: (ticker: string) => void;
   setActivePage: (page: string) => void;
+  setHolding: (ticker: string, shares: number, averagePrice: number) => void;
+  removeHolding: (ticker: string) => void;
+  setTotalAssets: (assets: number) => void;
 }
 
 export const useTickerStore = create<TickerState>((set, get) => ({
@@ -58,6 +68,12 @@ export const useTickerStore = create<TickerState>((set, get) => ({
   isLoading: false,
   error: null,
   activePage: 'dashboard', // Default page
+  holdings: {
+    'AAPL': { shares: 10, averagePrice: 150 },
+    'MSFT': { shares: 5, averagePrice: 300 },
+    'TSLA': { shares: 12, averagePrice: 250 },
+  },
+  totalAssets: 100000,
 
   // --- Actions ---
   setActivePage: (page) => set({ activePage: page }),
@@ -93,4 +109,22 @@ export const useTickerStore = create<TickerState>((set, get) => ({
   removeTickerFromWatchlist: (ticker) => {
     set({ watchlist: get().watchlist.filter((t) => t !== ticker) });
   },
+
+  setHolding: (ticker, shares, averagePrice) => {
+    const { holdings } = get();
+    const newHoldings = {
+      ...holdings,
+      [ticker]: { shares, averagePrice },
+    };
+    set({ holdings: newHoldings });
+  },
+
+  removeHolding: (ticker) => {
+    const { holdings } = get();
+    const newHoldings = { ...holdings };
+    delete newHoldings[ticker];
+    set({ holdings: newHoldings });
+  },
+
+  setTotalAssets: (assets) => set({ totalAssets: assets }),
 }));

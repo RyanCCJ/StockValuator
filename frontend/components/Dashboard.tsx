@@ -1,17 +1,8 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-} from 'recharts';
 import { useTickerStore } from '@/store/tickerStore';
+import CandlestickChart, { CandlestickData } from './CandlestickChart';
 
 // Define types for our data
 interface PriceData {
@@ -25,23 +16,25 @@ interface PriceData {
   marketCap?: number;
 }
 
-interface KlineData {
+interface ApiKlineData {
   Date: string;
+  Open: number;
+  High: number;
+  Low: number;
   Close: number;
+  Volume: number;
 }
 
 const API_BASE_URL = 'http://localhost:8000';
 
 const Dashboard = () => {
-  // Use the global state instead of local state for the ticker
   const { selectedTicker } = useTickerStore();
 
   const [priceData, setPriceData] = useState<PriceData | null>(null);
-  const [klineData, setKlineData] = useState<KlineData[]>([]);
+  const [klineData, setKlineData] = useState<CandlestickData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // useEffect now depends on the global selectedTicker
   useEffect(() => {
     if (!selectedTicker) return;
 
@@ -64,10 +57,19 @@ const Dashboard = () => {
         }
 
         const price = await priceResponse.json();
-        const kline = await klineResponse.json();
+        const kline: ApiKlineData[] = await klineResponse.json();
+
+        // Map the API data to the format required by the candlestick chart
+        const formattedKlineData = kline.map(d => ({
+          time: d.Date,
+          open: d.Open,
+          high: d.High,
+          low: d.Low,
+          close: d.Close,
+        }));
 
         setPriceData(price);
-        setKlineData(kline);
+        setKlineData(formattedKlineData);
 
       } catch (err: any) {
         setError(err.message);
@@ -79,7 +81,7 @@ const Dashboard = () => {
     };
 
     fetchData();
-  }, [selectedTicker]); // Dependency array updated to global state
+  }, [selectedTicker]);
 
   if (loading) {
     return <div>Loading dashboard for {selectedTicker}...</div>;
@@ -122,21 +124,9 @@ const Dashboard = () => {
       </div>
 
       {/* Chart Section */}
-      <div className="h-[400px] w-full">
+      <div className="w-full h-[450px]">
         <h2 className="text-xl font-semibold mb-2">6-Month Price Chart</h2>
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart
-            data={klineData}
-            margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-          >
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="Date" />
-            <YAxis domain={['dataMin', 'dataMax']} />
-            <Tooltip />
-            <Legend />
-            <Line type="monotone" dataKey="Close" stroke="#8884d8" activeDot={{ r: 8 }} />
-          </LineChart>
-        </ResponsiveContainer>
+        <CandlestickChart data={klineData} ticker={selectedTicker} />
       </div>
     </div>
   );
