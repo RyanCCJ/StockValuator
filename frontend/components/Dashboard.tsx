@@ -50,8 +50,8 @@ const Dashboard = () => {
       setError(null);
       try {
         const [priceResponse, klineResponse] = await Promise.all([
-          fetch(`${API_BASE_URL}/stock/${selectedTicker}/price`),
-          fetch(`${API_BASE_URL}/stock/${selectedTicker}/kline?period=6mo&interval=1d`),
+          fetch(`${API_BASE_URL}/api/v1/stock/${selectedTicker}/price`),
+          fetch(`${API_BASE_URL}/api/v1/stock/${selectedTicker}/kline?period=6mo&interval=1d`),
         ]);
 
         if (!priceResponse.ok) {
