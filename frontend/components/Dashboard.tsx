@@ -71,8 +71,12 @@ const Dashboard = () => {
         setPriceData(price);
         setKlineData(formattedKlineData);
 
-      } catch (err: any) {
-        setError(err.message);
+      } catch (err) {
+        if (err instanceof Error) {
+          setError(err.message);
+        } else {
+          setError(String(err));
+        }
         setPriceData(null);
         setKlineData([]);
       } finally {

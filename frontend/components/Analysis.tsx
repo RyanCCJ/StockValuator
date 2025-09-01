@@ -55,7 +55,30 @@ const FairValueItem = ({ title, data }: { title: string; data: { value: number |
 );
 
 // Component for displaying stock-specific analysis
-const StockAnalysisView = ({ data }: { data: any }) => (
+interface StockAnalysisData {
+  ticker: string;
+  analysis_scores: {
+    confidence: {
+      total_score: number;
+      breakdown: { [key: string]: number | string };
+    };
+    dividend: {
+      total_score: number;
+      breakdown: { [key: string]: number | string };
+    };
+    value: {
+      total_score: number;
+      breakdown: { [key: string]: number | string };
+    };
+  };
+  fair_value: {
+    growth_value: { value: number | null; reason: string };
+    dividend_value: { value: number | null; reason: string };
+    asset_value: { value: number | null; reason: string };
+  };
+}
+
+const StockAnalysisView = ({ data }: { data: StockAnalysisData }) => (
   <div className="space-y-6">
     <h2 className="text-2xl font-bold">Fundamental Analysis for {data.ticker}</h2>
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

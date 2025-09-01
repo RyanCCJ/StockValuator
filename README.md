@@ -1,6 +1,6 @@
 # StockValuator
 
-A comprehensive, full-stack web application designed for in-depth stock analysis and portfolio tracking. This tool assists users by aggregating financial data from various sources, providing a multi-faceted scoring system for equities, detailed views for ETFs, and personalized portfolio management features.
+A comprehensive full-stack web application for value investing, designed to estimate fair stock prices and support portfolio allocation. It offers multi-dimensional equity scoring, detailed ETF insights, and personalized portfolio management features.
 
 ## Features
 
@@ -49,66 +49,41 @@ A comprehensive, full-stack web application designed for in-depth stock analysis
   - `recharts` for Pie charts.
 - **Language**: TypeScript
 
-## Getting Started
+## Running the Application
 
-Follow these instructions to get the project up and running on your local machine.
-
-### Prerequisites
-
-Make sure you have the following software installed:
-- Git
-- Docker and Docker Compose
-- Node.js and npm (or your preferred package manager)
-
-### Installation & Setup
+This project is fully containerized using Docker. The following command will build and run all the necessary services, including the backend, frontend, database, and redis.
 
 1.  **Clone the repository:**
     ```bash
-    git clone <your-repository-url>
+    git clone https://github.com/RyanCCJ/StockValuator.git
     cd StockValuator
     ```
 
 2.  **Configure Environment Variables:**
     - In the project's root directory, find the `.env.example` file.
-    - Create a copy of this file and name it `.env`.
-    - The URLs for the data sources are pre-filled. You can leave them as is or modify them if needed.
+    - Create a copy of this file and name it `backend/.env`.
+    - The URLs for the data sources are pre-filled, but you should modify them into the proper format.
     ```bash
     # This command works on Linux/macOS
-    cp .env.example .env
+    cp .env.example backend/.env
     ```
 
-3.  **Build and Run Backend Services:**
-    - This command will build the Docker images for the backend, database, and other services and start them in detached mode.
+3.  **Build and Run the Application:**
+    - This command will build the Docker images for all services and start them in detached mode.
     ```bash
     docker-compose up --build -d
     ```
-    - The first time you run the backend, you need to install the Playwright browsers inside the container:
+    - The first time you run the application, you need to install the Playwright browsers inside the backend container:
     ```bash
     docker-compose exec backend playwright install
     ```
 
-4.  **Install Frontend Dependencies:**
-    - Navigate to the frontend directory and install the required npm packages.
-    ```bash
-    cd frontend
-    npm install
-    ```
+4.  **Access the Application:**
+    - **Frontend Application**: Accessible at `http://localhost:3000`
+    - **Backend API**: Accessible at `http://localhost:8000`
+    - **API Documentation**: Interactive API documentation (via Swagger UI) is available at `http://localhost:8000/docs`.
 
-## Usage
-
-After completing the setup, the application will be running in two parts:
-
--   **Backend API**: Accessible at `http://localhost:8000`.
-    -   Interactive API documentation (via Swagger UI) is available at `http://localhost:8000/docs`.
--   **Frontend Application**: Accessible at `http://localhost:3000`.
-
-To start the frontend development server (if it's not already running):
-```bash
-# Inside the /frontend directory
-npm run dev
-```
-
-To stop all backend services:
+To stop all services:
 ```bash
 docker-compose down
 ```
@@ -117,7 +92,6 @@ docker-compose down
 
 ```
 /StockValuator
-├── .env                # (Private) Your local environment variables
 ├── .env.example        # Example environment file to guide setup
 ├── .gitignore          # Files and directories ignored by Git
 ├── docker-compose.yml  # Defines and configures all backend services
@@ -129,7 +103,8 @@ docker-compose down
 │   │   │   └── analysis_service.py # Core scoring and valuation logic
 │   │   ├── main.py     # FastAPI application entrypoint and API routes
 │   │   └── ...
-│   └── Dockerfile      # Instructions to build the backend Docker image
+|   ├── Dockerfile      # Instructions to build the backend Docker image
+│   └── .env            # (Private) Your local environment variables
 └── frontend/
     ├── app/            # Next.js App Router pages and layouts
     ├── components/     # All React components

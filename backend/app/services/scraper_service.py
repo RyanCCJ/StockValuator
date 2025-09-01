@@ -46,12 +46,14 @@ async def get_financial_statements_data(ticker: str) -> pd.DataFrame:
                                 continue
             
             if not financial_data:
-                raise ScraperError(f"Could not find or parse financial data for '{ticker}'.")
+                raise ScraperError(f"Currently unable to fetch data for non-US company ticker '{ticker}'.")
 
             df = pd.DataFrame(financial_data)
             df = df.sort_values('fiscal_year').tail(10).reset_index(drop=True)
             return df
 
+        except ScraperError:
+            raise
         except Exception as e:
             print(f"An error occurred during data source 2 scraping for {ticker}: {e}")
             raise ScraperError(f"Failed to scrape data for {ticker} from data source 2.")

@@ -12,17 +12,37 @@ interface EtfHolding {
   weight: string;
 }
 
+interface EtfDetails {
+  longBusinessSummary?: string;
+  fundFamily?: string;
+  expenseRatio?: number;
+  trailingPE?: number;
+  dividendYield?: number;
+  fiveYearAverageReturn?: number;
+  beta?: number;
+}
+
 interface EtfData {
-  details: any; // Contains summary and all key metrics from yfinance
+  details: EtfDetails; // Contains summary and all key metrics from yfinance
   top_holdings: EtfHolding[];
 }
 
 const COLORS = ['#D4B2A7', '#7B92A6', '#A5A890', '#BDBAAE', '#C48A69', '#E8D5A2', '#9B7C6D', '#A9C4D4', '#D9E3C8', '#EFEBE0', '#A39187', '#B7C9D6', '#CAD0B8', '#D1C9B9', '#D4A68A'];
 const OTHERS_COLOR = '#9ca3af'; // A neutral grey for the 'Others' slice
 
-const renderCustomizedLabel = (props: any) => {
+interface CustomizedLabelProps {
+  cx?: number;
+  cy?: number;
+  midAngle?: number;
+  innerRadius?: number;
+  outerRadius?: number;
+  percent?: number;
+  index?: number;
+}
+
+const renderCustomizedLabel = (props: CustomizedLabelProps) => {
   const { percent } = props;
-  if (percent < 0.05) return null; // Don't render labels for very small slices
+  if (percent === undefined || percent < 0.05) return null; // Don't render labels for very small slices
   return `${(percent * 100).toFixed(1)}%`;
 };
 

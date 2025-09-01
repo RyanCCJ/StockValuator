@@ -93,8 +93,8 @@ const PortfolioSummary = ({ value, totalAssets, setTotalAssets }: { value: numbe
   );
 };
 
-const HoldingsTable = ({ holdings, tickerPrices, removeHolding }: any) => {
-  const totalPortfolioValue = Object.entries(holdings).reduce((acc, [ticker, holding]: [string, any]) => {
+const HoldingsTable = ({ holdings, tickerPrices, removeHolding }: { holdings: { [key: string]: Holding }, tickerPrices: { [key: string]: number }, removeHolding: (ticker: string) => void }) => {
+  const totalPortfolioValue = Object.entries(holdings).reduce((acc, [ticker, holding]) => {
     const currentPrice = tickerPrices[ticker] || 0;
     return acc + holding.shares * currentPrice;
   }, 0);
@@ -136,7 +136,7 @@ const HoldingsTable = ({ holdings, tickerPrices, removeHolding }: any) => {
                 <TableCell colSpan={8} className="h-24 text-center">No holdings yet. Add one to get started.</TableCell>
               </TableRow>
             ) : (
-              Object.entries(holdings).map(([ticker, holding]: [string, any]) => {
+              Object.entries(holdings).map(([ticker, holding]) => {
                 const currentPrice = tickerPrices[ticker] || 0;
                 const totalValue = holding.shares * currentPrice;
                 const profitLoss = (currentPrice - holding.averagePrice) * holding.shares;
@@ -204,8 +204,13 @@ const PortfolioCharts = ({ holdings, tickerPrices }: { holdings: { [key: string]
     return acc;
   }, [] as { name: string; value: number }[]).filter(item => item.value > 0);
 
-  const renderCustomizedLabel = (props: any) => {
+  const renderCustomizedLabel = (props: { cx?: number, cy?: number, midAngle?: number, innerRadius?: number, outerRadius?: number, percent?: number }) => {
     const { cx, cy, midAngle, innerRadius, outerRadius, percent } = props;
+
+    if (cx === undefined || cy === undefined || midAngle === undefined || innerRadius === undefined || outerRadius === undefined || percent === undefined) {
+      return null;
+    }
+
     const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
     const x = cx + radius * Math.cos(-midAngle * (Math.PI / 180));
     const y = cy + radius * Math.sin(-midAngle * (Math.PI / 180));
@@ -261,14 +266,11 @@ const PortfolioCharts = ({ holdings, tickerPrices }: { holdings: { [key: string]
 export const Portfolio = () => {
   const { holdings, removeHolding, totalAssets, setTotalAssets } = useTickerStore();
   const [tickerPrices, setTickerPrices] = useState<{ [key: string]: number }>({});
-  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const fetchPrices = async () => {
-      setIsLoading(true);
       const tickers = Object.keys(holdings);
       if (tickers.length === 0) {
-        setIsLoading(false);
         return;
       }
       const pricePromises = tickers.map(ticker =>
@@ -286,8 +288,6 @@ export const Portfolio = () => {
         setTickerPrices(prices);
       } catch (error) {
         console.error("Failed to fetch ticker prices:", error);
-      } finally {
-        setIsLoading(false);
       }
     };
 
