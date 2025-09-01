@@ -1,3 +1,4 @@
+import re
 import pandas as pd
 import numpy as np
 from scipy.stats import linregress
@@ -210,7 +211,26 @@ def _calculate_piotroski_f_score(financial_statements_df: pd.DataFrame, key_metr
     if len(df.dropna(subset=['eps', 'bs_sh_out', 'cash_flow_per_sh', 'return_on_asset', 'bs_lt_borrow', 'cur_ratio', 'gross_margin', 'revenue_per_sh', 'book_val_per_sh'])) < 2:
         return 0
     score = 0
-    # ... (rest of the function remains the same)
+    df = df.iloc[-2:].reset_index() # Last two years
+    
+    # Profitability
+    net_income = df['eps'].iloc[-1] * df['bs_sh_out'].iloc[-1]
+    ocf = df['cash_flow_per_sh'].iloc[-1] * df['bs_sh_out'].iloc[-1]
+    if net_income > 0: score += 1
+    if ocf > net_income: score += 1
+    if df['return_on_asset'].iloc[-1] > 0: score += 1
+    
+    # Leverage, Liquidity, Source of Funds
+    if df['bs_lt_borrow'].iloc[-1] <= df['bs_lt_borrow'].iloc[-2]: score += 1
+    if df['cur_ratio'].iloc[-1] > df['cur_ratio'].iloc[-2]: score += 1
+    if df['bs_sh_out'].iloc[-1] <= df['bs_sh_out'].iloc[-2]: score += 1
+        
+    # Operating Efficiency
+    if df['gross_margin'].iloc[-1] > df['gross_margin'].iloc[-2]: score += 1
+    ato_1 = df['revenue_per_sh'].iloc[-1]/df['book_val_per_sh'].iloc[-1]
+    ato_2 = df['revenue_per_sh'].iloc[-2]/df['book_val_per_sh'].iloc[-2]
+    if ato_1 > ato_2: score += 1
+        
     return score
 
 def calculate_value_score(
@@ -235,25 +255,32 @@ def calculate_value_score(
     
     current_price = _safe_float(key_metrics_data.get('Price'))
     pe_ratio = _safe_float(key_metrics_data.get('P/E'))
-    dividend_yield = _safe_float(key_metrics_data.get('Dividend %'))
+    dividend_est = key_metrics_data.get('Dividend Est.')
     
     # Dividend-dependent calculations
-    if 'div_per_shr' in df.columns and not df['div_per_shr'].dropna().empty and current_price > 0:
+    if 'div_per_shr' in df.columns and not df['div_per_shr'].dropna().empty and dividend_est != '-':
         div_series = df['div_per_shr'].dropna()
+        dividend_yield = _safe_float(re.search(r"[\d.]+(?=%)", dividend_est).group())
+
+        # 1. Yield vs 10-Year High
         historical_yield = (div_series / current_price) * 100
         if not historical_yield.empty:
             yield_pressure_line = historical_yield.quantile(0.75)
             if dividend_yield >= yield_pressure_line: scores['yield_position'] = 1
 
+        # 2. Dividend Yield > 4%
         if dividend_yield > 4: scores['high_dividend_yield'] = 1
+
+        # 3. Dividend Yield vs S&P 500
         if sp500_yield > 0 and dividend_yield > (sp500_yield * 1.5): scores['yield_vs_sp500'] = 1
 
-        if len(div_series) >= 6:
-            relevant_divs = div_series.iloc[[-6, -1]]
-            if (relevant_divs > 0).all():
-                cagr_5y = ((relevant_divs.iloc[-1] / relevant_divs.iloc[0]) ** (1/5)) - 1
-                if (cagr_5y * 100) + dividend_yield > 15: scores['chowder_rule'] = 1
+        # 4. Chowder Rule
+        dividend_gr5y = _safe_float(key_metrics_data.get('Dividend Gr. 3/5Y').split()[-1])
+        if dividend_gr5y + dividend_yield > 15: scores['chowder_rule'] = 1
 
+        # 5. DDM (Dividend Discount Model)
+        # Simplified DDM: Fair Value = D1 / (r - g)
+        # D1 = D0 * (1 + g)
         if len(div_series) >= 2:
             d0 = div_series.iloc[-1]
             if d0 > 0 and len(div_series) > 1 and div_series.iloc[-2] > 0:
@@ -264,22 +291,27 @@ def calculate_value_score(
                     if current_price < ddm_price: scores['ddm_undervalued'] = 1
 
     # Non-dividend calculations
+    # 6. P/E vs 10-Year Low
     if 'eps' in df.columns and current_price > 0:
         historical_pe = current_price / df['eps']
         if not historical_pe.dropna().empty:
             pe_support_line = historical_pe.quantile(0.25)
             if pe_ratio > 0 and pe_ratio <= pe_support_line: scores['pe_position'] = 1
 
+    # 7. FCF Yield
     if 'free_cash_flow_per_sh' in df.columns and current_price > 0:
         fcf_yield = (df['free_cash_flow_per_sh'].iloc[-1] / current_price) * 100
         if fcf_yield > 10: scores['fcf_yield'] = 2
         elif fcf_yield > 5: scores['fcf_yield'] = 1
 
+    # 8. P/E < 15
     if pe_ratio > 0 and pe_ratio < 15: scores['low_pe_ratio'] = 1
 
+    # 9. P/E < 15 and 10Y Avg ROE > 20%
     if pe_ratio > 0 and pe_ratio < 15 and 'return_com_eqy' in df.columns:
         if df['return_com_eqy'].mean() > 20: scores['pe_roe_combo'] = 1
 
+    # 10. Piotroski Score
     if len(df) >= 2:
         piotroski_score = _calculate_piotroski_f_score(df, key_metrics_data)
         if piotroski_score > 5: scores['piotroski_score'] = 1
@@ -306,7 +338,7 @@ def estimate_fair_value(
     if confidence_results.get('breakdown', {}).get('eps_trend', 0) <= 0:
         results['growth_value']['reason'] = 'EPS trend is not positive.'
     else:
-        eps = _safe_float(key_metrics_data.get('EPS next Y'))
+        eps = _safe_float(key_metrics_data.get('EPS (ttm)'))
         g_str = key_metrics_data.get('EPS next 5Y', '0%')
         g = _safe_float(g_str) / 100
         if eps <= 0 or g <= 0:
@@ -320,13 +352,17 @@ def estimate_fair_value(
     if confidence_results.get('breakdown', {}).get('dividend_consistency', 0) <= 0:
         results['dividend_value']['reason'] = 'Not a consistent dividend payer.'
     else:
-        d0 = _safe_float(key_metrics_data.get('Dividend'))
-        r = user_assumptions.get('dividend_required_return', 0.04)
-        if d0 <= 0 or r <= 0:
-            results['dividend_value']['reason'] = 'Invalid dividend or required return.'
-        else:
-            results['dividend_value']['value'] = d0 / r
-            results['dividend_value']['reason'] = 'Calculated successfully.'
+        dividend_est = key_metrics_data.get('Dividend Est.')
+        if dividend_est == '-':
+            results['dividend_value']['reason'] = 'Expected not to pay dividends.'
+        else: 
+            dividend = _safe_float(re.search(r"^\d*\.?\d+", dividend_est).group())
+            div_ratio = user_assumptions.get('dividend_required_return', 0.04)
+            if dividend <= 0 or div_ratio <= 0:
+                results['dividend_value']['reason'] = 'Expected not to pay dividends.'
+            else:
+                results['dividend_value']['value'] = dividend / div_ratio
+                results['dividend_value']['reason'] = 'Calculated successfully.'
 
     # 3. Asset Stock Valuation
     pb_ratio = _safe_float(key_metrics_data.get('P/B'))
@@ -334,8 +370,6 @@ def estimate_fair_value(
     pb_threshold = user_assumptions.get('asset_pb_threshold', 0.8)
     if pb_ratio <= 0 or book_value_per_share <= 0:
         results['asset_value']['reason'] = 'P/B ratio or Book Value is not positive.'
-    elif pb_ratio >= pb_threshold:
-        results['asset_value']['reason'] = f'P/B ratio ({pb_ratio:.2f}) is not below threshold ({pb_threshold}).'
     else:
         results['asset_value']['value'] = book_value_per_share / pb_threshold
         results['asset_value']['reason'] = 'Calculated successfully.'

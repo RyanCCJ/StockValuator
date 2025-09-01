@@ -7,8 +7,9 @@ import { Skeleton } from './ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 import { Terminal, Info } from 'lucide-react';
+import { EtfView } from './EtfView'; // Import the new ETF view
 
-// Reusable Score Card Component
+// Reusable Score Card Component for stocks
 const ScoreCard = ({ title, score, breakdown }: { title: string; score: number; breakdown: { [key: string]: number | string } }) => (
   <Card>
     <CardHeader>
@@ -31,7 +32,7 @@ const ScoreCard = ({ title, score, breakdown }: { title: string; score: number; 
   </Card>
 );
 
-// Reusable Fair Value Item Component
+// Reusable Fair Value Item Component for stocks
 const FairValueItem = ({ title, data }: { title: string; data: { value: number | null; reason: string } }) => (
   <div className="p-4 rounded-lg bg-secondary">
     <div className="flex items-center justify-center text-sm text-muted-foreground mb-1">
@@ -53,6 +54,40 @@ const FairValueItem = ({ title, data }: { title: string; data: { value: number |
   </div>
 );
 
+// Component for displaying stock-specific analysis
+const StockAnalysisView = ({ data }: { data: any }) => (
+  <div className="space-y-6">
+    <h2 className="text-2xl font-bold">Fundamental Analysis for {data.ticker}</h2>
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <ScoreCard 
+        title="Confidence Score"
+        score={data.analysis_scores.confidence.total_score}
+        breakdown={data.analysis_scores.confidence.breakdown}
+      />
+      <ScoreCard 
+        title="Dividend Score"
+        score={data.analysis_scores.dividend.total_score}
+        breakdown={data.analysis_scores.dividend.breakdown}
+      />
+      <ScoreCard 
+        title="Value Score"
+        score={data.analysis_scores.value.total_score}
+        breakdown={data.analysis_scores.value.breakdown}
+      />
+    </div>
+    <div>
+      <h3 className="text-xl font-bold mb-4">Fair Value Estimation</h3>
+      <Card>
+        <CardContent className="pt-6 grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
+          <FairValueItem title="Growth Value" data={data.fair_value.growth_value} />
+          <FairValueItem title="Dividend Value" data={data.fair_value.dividend_value} />
+          <FairValueItem title="Asset Value" data={data.fair_value.asset_value} />
+        </CardContent>
+      </Card>
+    </div>
+  </div>
+);
+
 // Main Analysis Component
 export const Analysis = () => {
   const {
@@ -71,23 +106,26 @@ export const Analysis = () => {
 
   if (isLoading) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {[...Array(3)].map((_, i) => (
-          <Card key={i}>
-            <CardHeader>
-              <Skeleton className="h-6 w-3/4" />
-              <Skeleton className="h-4 w-1/2" />
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {[...Array(5)].map((_, j) => (
-                <div key={j} className="flex justify-between">
-                  <Skeleton className="h-4 w-1/3" />
-                  <Skeleton className="h-4 w-1/4" />
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        ))}
+      <div className="space-y-6">
+        <Skeleton className="h-8 w-1/2 mb-4" />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {[...Array(3)].map((_, i) => (
+            <Card key={i}>
+              <CardHeader>
+                <Skeleton className="h-6 w-3/4" />
+                <Skeleton className="h-4 w-1/2" />
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {[...Array(5)].map((_, j) => (
+                  <div key={j} className="flex justify-between">
+                    <Skeleton className="h-4 w-1/3" />
+                    <Skeleton className="h-4 w-1/4" />
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       </div>
     );
   }
@@ -106,38 +144,14 @@ export const Analysis = () => {
     return <div className="text-center text-muted-foreground">Select a ticker to see the analysis.</div>;
   }
 
-  const { analysis_scores, fair_value } = analysisData;
+  // Conditionally render based on the quote type
+  if (analysisData.quoteType === 'ETF') {
+    return <EtfView data={analysisData.data} />;
+  }
 
-  return (
-    <div className="space-y-6">
-      <h2 className="text-2xl font-bold">Fundamental Analysis for {analysisData.ticker}</h2>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <ScoreCard 
-          title="Confidence Score"
-          score={analysis_scores.confidence.total_score}
-          breakdown={analysis_scores.confidence.breakdown}
-        />
-        <ScoreCard 
-          title="Dividend Score"
-          score={analysis_scores.dividend.total_score}
-          breakdown={analysis_scores.dividend.breakdown}
-        />
-        <ScoreCard 
-          title="Value Score"
-          score={analysis_scores.value.total_score}
-          breakdown={analysis_scores.value.breakdown}
-        />
-      </div>
-      <div>
-        <h3 className="text-xl font-bold mb-4">Fair Value Estimation</h3>
-        <Card>
-          <CardContent className="pt-6 grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
-            <FairValueItem title="Growth Value" data={fair_value.growth_value} />
-            <FairValueItem title="Dividend Value" data={fair_value.dividend_value} />
-            <FairValueItem title="Asset Value" data={fair_value.asset_value} />
-          </CardContent>
-        </Card>
-      </div>
-    </div>
-  );
+  if (analysisData.quoteType === 'EQUITY') {
+    return <StockAnalysisView data={analysisData.data} />;
+  }
+
+  return <div className="text-center text-muted-foreground">Unsupported quote type.</div>;
 };

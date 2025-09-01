@@ -12,7 +12,7 @@ const Sidebar = () => {
   const { selectedTicker, setSelectedTicker } = useTickerStore();
   
   // Placeholder for the watchlist - we will make this dynamic later
-  const [watchlist, setWatchlist] = useState(['AAPL', 'GOOGL', 'MSFT']);
+  const [watchlist, setWatchlist] = useState(['AAPL', 'GOOGL', 'MSFT', 'VOO']);
 
   const handleAddTicker = () => {
     if (newTicker && !watchlist.includes(newTicker.toUpperCase())) {

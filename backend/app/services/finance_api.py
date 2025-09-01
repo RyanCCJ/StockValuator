@@ -25,20 +25,43 @@ def get_ticker_data(ticker_symbol: str):
 
 def get_stock_price_info(ticker_symbol: str):
     """
-    Gets the current price and basic info for a stock.
+    Gets the current price and basic info for a stock or ETF.
+    It standardizes the output keys regardless of the quote type.
     """
     try:
         ticker = get_ticker_data(ticker_symbol)
-        # .info is a dictionary with a lot of data
         info = ticker.info
-        
-        required_keys = [
-            'currentPrice', 'open', 'dayHigh', 'dayLow', 'previousClose', 
-            'volume', 'marketCap', 'fiftyTwoWeekHigh', 'fiftyTwoWeekLow'
-        ]
-        
-        price_info = {key: info.get(key) for key in required_keys}
-        price_info['ticker'] = ticker_symbol
+        quote_type = info.get('quoteType')
+
+        price_info = {
+            'ticker': ticker_symbol,
+            'quoteType': quote_type,
+        }
+
+        if quote_type == 'ETF':
+            price_info.update({
+                'currentPrice': info.get('navPrice') or info.get('regularMarketPrice'),
+                'open': info.get('open'),
+                'dayHigh': info.get('dayHigh'),
+                'dayLow': info.get('dayLow'),
+                'previousClose': info.get('previousClose'),
+                'volume': info.get('volume'),
+                'marketCap': info.get('totalAssets'), # Use totalAssets for ETFs
+                'fiftyTwoWeekHigh': info.get('fiftyTwoWeekHigh'),
+                'fiftyTwoWeekLow': info.get('fiftyTwoWeekLow'),
+            })
+        else: # Default to EQUITY keys
+            price_info.update({
+                'currentPrice': info.get('currentPrice'),
+                'open': info.get('open'),
+                'dayHigh': info.get('dayHigh'),
+                'dayLow': info.get('dayLow'),
+                'previousClose': info.get('previousClose'),
+                'volume': info.get('volume'),
+                'marketCap': info.get('marketCap'),
+                'fiftyTwoWeekHigh': info.get('fiftyTwoWeekHigh'),
+                'fiftyTwoWeekLow': info.get('fiftyTwoWeekLow'),
+            })
         
         return price_info
 
@@ -77,4 +100,57 @@ def get_stock_kline(ticker_symbol: str, period: str = "6mo", interval: str = "1d
         raise
     except Exception as e:
         print(f"An unexpected error occurred while fetching k-line for {ticker_symbol}: {e}")
+        return None
+
+def get_quote_type(ticker_symbol: str) -> str | None:
+    """Gets the quote type (e.g., 'EQUITY', 'ETF') for a ticker."""
+    try:
+        ticker = get_ticker_data(ticker_symbol)
+        return ticker.info.get('quoteType')
+    except TickerNotFound:
+        raise
+    except Exception as e:
+        print(f"An unexpected error occurred while fetching quote type for {ticker_symbol}: {e}")
+        return None
+
+def get_etf_details_from_yfinance(ticker_symbol: str) -> dict | None:
+    """Gets a dictionary of detailed information for an ETF from yfinance."""
+    try:
+        ticker = get_ticker_data(ticker_symbol)
+        info = ticker.info
+
+        # Format data and handle missing values gracefully
+        expense_ratio = info.get('netExpenseRatio')
+        if expense_ratio is not None:
+            expense_ratio = f"{expense_ratio}%"
+        
+        trailing_PE = info.get('trailingPE')
+        if trailing_PE is not None:
+            trailing_PE = f"{trailing_PE:.2f}"
+        
+        dividend_yield = info.get('dividendYield')
+        if dividend_yield is not None:
+            dividend_yield = f"{dividend_yield}%"
+
+        five_year_return = info.get('fiveYearAverageReturn')
+        if five_year_return is not None:
+            five_year_return = f"{five_year_return * 100:.2f}%"
+        
+        beta = info.get('beta3Year')
+        if beta is not None:
+            beta = str(beta)
+
+        return {
+            "longBusinessSummary": info.get('longBusinessSummary'),
+            "fundFamily": info.get('fundFamily'),
+            "expenseRatio": expense_ratio,
+            "trailingPE": trailing_PE,
+            "dividendYield": dividend_yield,
+            "fiveYearAverageReturn": five_year_return,
+            "beta": beta,
+        }
+    except TickerNotFound:
+        raise
+    except Exception as e:
+        print(f"An unexpected error occurred while fetching ETF details for {ticker_symbol}: {e}")
         return None

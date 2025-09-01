@@ -2,30 +2,16 @@ import { create } from 'zustand';
 
 // --- Type Definitions for API Response ---
 
-interface ScoreBreakdown {
-  [key: string]: number;
-}
+// For regular stocks (EQUITY)
+interface ScoreBreakdown { [key: string]: number; }
+interface AnalysisScore { total_score: number; breakdown: ScoreBreakdown; }
+interface FairValueItem { value: number | null; reason: string; }
+interface FairValue { growth_value: FairValueItem; dividend_value: FairValueItem; asset_value: FairValueItem; }
 
-interface AnalysisScore {
-  total_score: number;
-  breakdown: ScoreBreakdown;
-}
-
-interface FairValueItem {
-  value: number | null;
-  reason: string;
-}
-
-interface FairValue {
-  growth_value: FairValueItem;
-  dividend_value: FairValueItem;
-  asset_value: FairValueItem;
-}
-
-export interface AnalysisData {
+interface StockData {
   ticker: string;
-  finviz_data: any; // Replace 'any' with a more specific type if needed
-  roic_data_summary: any[]; // Replace 'any' with a more specific type if needed
+  key_metrics: any;
+  financial_statements: any[];
   analysis_scores: {
     confidence: AnalysisScore;
     dividend: AnalysisScore;
@@ -33,6 +19,24 @@ export interface AnalysisData {
   };
   fair_value: FairValue;
 }
+
+// For ETFs
+interface EtfHolding {
+  symbol: string;
+  name: string;
+  weight: string;
+}
+
+interface EtfData {
+  details: any; // Contains summary and all key metrics from yfinance
+  top_holdings: EtfHolding[];
+}
+
+// Discriminated union for the analysis data
+export type AnalysisData = 
+  | { quoteType: 'EQUITY'; data: StockData }
+  | { quoteType: 'ETF'; data: EtfData };
+
 
 export interface Holding {
   shares: number;
@@ -63,7 +67,7 @@ interface TickerState {
 export const useTickerStore = create<TickerState>((set, get) => ({
   // --- State ---
   selectedTicker: 'AAPL', 
-  watchlist: ['AAPL', 'MSFT', 'GOOGL'], // Default watchlist
+  watchlist: ['AAPL', 'MSFT', 'GOOGL', 'VOO'], // Added an ETF
   analysisData: null,
   isLoading: false,
   error: null,
@@ -71,7 +75,7 @@ export const useTickerStore = create<TickerState>((set, get) => ({
   holdings: {
     'AAPL': { shares: 10, averagePrice: 150 },
     'MSFT': { shares: 5, averagePrice: 300 },
-    'TSLA': { shares: 12, averagePrice: 250 },
+    'VOO': { shares: 10, averagePrice: 450 },
   },
   totalAssets: 100000,
 

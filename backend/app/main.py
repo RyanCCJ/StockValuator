@@ -96,51 +96,69 @@ def get_kline(ticker: str, period: Optional[str] = "6mo", interval: Optional[str
 @app.get("/api/v1/stock/{ticker}/analysis")
 async def get_stock_analysis(ticker: str):
     """
-    Get a full fundamental analysis for a stock, including scores and valuation.
+    Get a full fundamental analysis for a stock or ETF.
     """
     try:
-        # Run scrapers concurrently
-        results = await asyncio.gather(
-            scraper_service.get_key_metrics_data(ticker),
-            scraper_service.get_financial_statements_data(ticker),
-            return_exceptions=True
-        )
-        
-        key_metrics_data, financial_statements_df = None, None
-        for result in results:
-            if isinstance(result, dict):
-                key_metrics_data = result
-            elif isinstance(result, Exception):
-                 raise HTTPException(status_code=500, detail=f"An error occurred during scraping: {result}")
-            else: # It's the DataFrame
-                financial_statements_df = result
+        quote_type = finance_api.get_quote_type(ticker)
 
-        if key_metrics_data is None or financial_statements_df is None:
-            raise HTTPException(status_code=500, detail="Failed to retrieve all necessary data.")
+        if quote_type == 'ETF':
+            # For ETFs, get details from yfinance and holdings from the scraper
+            details = finance_api.get_etf_details_from_yfinance(ticker)
+            
+            holdings = await scraper_service.get_etf_holdings_data(ticker)
 
-        # --- Placeholder Inputs ---
-        manual_inputs = {'economic_moat': 2, 'environment_risk': -1}
-        sp500_yield = 1.5 # Placeholder S&P 500 yield
-        user_assumptions = {'dividend_required_return': 0.04, 'asset_pb_threshold': 0.8}
-        
-        # --- Run Analysis ---
-        confidence_results = analysis_service.calculate_confidence_score(financial_statements_df, key_metrics_data, manual_inputs)
-        dividend_results = analysis_service.calculate_dividend_score(financial_statements_df, key_metrics_data)
-        value_results = analysis_service.calculate_value_score(financial_statements_df, key_metrics_data, sp500_yield)
-        fair_value_estimates = analysis_service.estimate_fair_value(financial_statements_df, key_metrics_data, confidence_results, dividend_results, user_assumptions)
+            etf_data = {
+                "details": details,
+                "top_holdings": holdings
+            }
+            return {"quoteType": "ETF", "data": etf_data}
 
-        return {
-            "ticker": ticker,
-            "key_metrics": key_metrics_data,
-            "financial_statements": financial_statements_df.to_dict(orient='records'),
-            "analysis_scores": {
-                "confidence": confidence_results,
-                "dividend": dividend_results,
-                "value": value_results
-            },
-            "fair_value": fair_value_estimates
-        }
+        elif quote_type == 'EQUITY':
+            # For stocks, all data sources are async, so gather them all
+            stock_results = await asyncio.gather(
+                scraper_service.get_key_metrics_data(ticker),
+                scraper_service.get_financial_statements_data(ticker),
+                return_exceptions=True
+            )
+            
+            key_metrics_data, financial_statements_df = None, None
+            for result in stock_results:
+                if isinstance(result, dict):
+                    key_metrics_data = result
+                elif isinstance(result, Exception):
+                    raise HTTPException(status_code=500, detail=f"An error occurred during scraping: {result}")
+                else: # It's the DataFrame
+                    financial_statements_df = result
 
+            if key_metrics_data is None or financial_statements_df is None:
+                raise HTTPException(status_code=500, detail="Failed to retrieve all necessary data for stock analysis.")
+
+            manual_inputs = {'economic_moat': 2, 'environment_risk': -1}
+            sp500_yield = 1.19
+            user_assumptions = {'dividend_required_return': 0.04, 'asset_pb_threshold': 0.8}
+            
+            confidence_results = analysis_service.calculate_confidence_score(financial_statements_df, key_metrics_data, manual_inputs)
+            dividend_results = analysis_service.calculate_dividend_score(financial_statements_df, key_metrics_data)
+            value_results = analysis_service.calculate_value_score(financial_statements_df, key_metrics_data, sp500_yield)
+            fair_value_estimates = analysis_service.estimate_fair_value(financial_statements_df, key_metrics_data, confidence_results, dividend_results, user_assumptions)
+
+            stock_data = {
+                "ticker": ticker,
+                "key_metrics": key_metrics_data,
+                "financial_statements": financial_statements_df.to_dict(orient='records'),
+                "analysis_scores": {
+                    "confidence": confidence_results,
+                    "dividend": dividend_results,
+                    "value": value_results
+                },
+                "fair_value": fair_value_estimates
+            }
+            return {"quoteType": "EQUITY", "data": stock_data}
+        else:
+            raise HTTPException(status_code=404, detail=f"Ticker '{ticker}' has an unsupported quote type: {quote_type}")
+
+    except finance_api.TickerNotFound as e:
+        raise HTTPException(status_code=404, detail=str(e))
     except scraper_service.ScraperError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
