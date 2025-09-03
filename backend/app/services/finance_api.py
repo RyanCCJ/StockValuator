@@ -1,4 +1,6 @@
 import yfinance as yf
+import pandas as pd
+import numpy as np
 from functools import lru_cache
 
 class TickerNotFound(Exception):
@@ -16,8 +18,6 @@ def get_ticker_data(ticker_symbol: str):
     """
     ticker = yf.Ticker(ticker_symbol)
     
-    # yfinance downloads a lot of data, history() is a good way to check if it's valid
-    # If history is empty, the ticker is likely invalid.
     if ticker.history(period="1d").empty:
         raise TickerNotFound(ticker_symbol)
         
@@ -49,6 +49,8 @@ def get_stock_price_info(ticker_symbol: str):
                 'marketCap': info.get('totalAssets'), # Use totalAssets for ETFs
                 'fiftyTwoWeekHigh': info.get('fiftyTwoWeekHigh'),
                 'fiftyTwoWeekLow': info.get('fiftyTwoWeekLow'),
+                'PEratio': info.get('trailingPE'),
+                'dividendYield': info.get('dividendYield'),
             })
         else: # Default to EQUITY keys
             price_info.update({
@@ -61,6 +63,8 @@ def get_stock_price_info(ticker_symbol: str):
                 'marketCap': info.get('marketCap'),
                 'fiftyTwoWeekHigh': info.get('fiftyTwoWeekHigh'),
                 'fiftyTwoWeekLow': info.get('fiftyTwoWeekLow'),
+                'PEratio': info.get('trailingPE'),
+                'dividendYield': info.get('dividendYield'),
             })
         
         return price_info
@@ -73,11 +77,7 @@ def get_stock_price_info(ticker_symbol: str):
 
 def get_stock_kline(ticker_symbol: str, period: str = "6mo", interval: str = "1d"):
     """
-    Gets historical K-line (OHLCV) data for a stock.
-    
-    :param ticker_symbol: The stock ticker.
-    :param period: The period of data to fetch (e.g., "1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "10y", "ytd", "max").
-    :param interval: The data interval (e.g., "1m", "2m", "5m", "15m", "30m", "60m", "90m", "1h", "1d", "5d", "1wk", "1mo", "3mo").
+    Gets historical K-line (OHLCV) data for a stock, including Bollinger Bands and MAs/EMAs.
     """
     try:
         ticker = get_ticker_data(ticker_symbol)
@@ -85,16 +85,54 @@ def get_stock_kline(ticker_symbol: str, period: str = "6mo", interval: str = "1d
         
         if hist.empty:
             return None
-            
-        # Reset index to make 'Date' a column
+
+        # Calculate Bollinger Bands
+        window = 20
+        hist['MiddleBand'] = hist['Close'].rolling(window=window).mean()
+        hist['StdDev'] = hist['Close'].rolling(window=window).std()
+        hist['UpperBand'] = hist['MiddleBand'] + (hist['StdDev'] * 2)
+        hist['LowerBand'] = hist['MiddleBand'] - (hist['StdDev'] * 2)
+
+        # Calculate MAs and EMAs
+        ma_periods = [7, 30, 90]
+        for p in ma_periods:
+            hist[f'MA{p}'] = hist['Close'].rolling(window=p).mean()
+        ema_periods = [5, 10, 20]
+        for p in ema_periods:
+            hist[f'EMA{p}'] = hist['Close'].ewm(span=p, adjust=False).mean()
+
+        # Calculate MACD
+        ema12 = hist['Close'].ewm(span=12, adjust=False).mean()
+        ema26 = hist['Close'].ewm(span=26, adjust=False).mean()
+        hist['MACD_line'] = ema12 - ema26
+        hist['Signal_line'] = hist['MACD_line'].ewm(span=9, adjust=False).mean()
+        hist['MACD_histogram'] = hist['MACD_line'] - hist['Signal_line']
+
+        # Calculate Support and Resistance Levels
+        # A simple method: find N highest highs (resistance) and N lowest lows (support)
+        # More complex methods like pivot points could be added later.
+        sorted_lows = hist['Low'].sort_values()
+        sorted_highs = hist['High'].sort_values(ascending=False)
+        
+        support_levels = {
+            f"s{i+1}": level for i, level in enumerate(sorted_lows.unique()[:3])
+        }
+        resistance_levels = {
+            f"r{i+1}": level for i, level in enumerate(sorted_highs.unique()[:3])
+        }
+
         hist = hist.reset_index()
-        # Convert timestamp to string for JSON serialization
-        # The column name could be 'Date' or 'Datetime' depending on interval
         date_col = 'Date' if 'Date' in hist.columns else 'Datetime'
         hist[date_col] = hist[date_col].dt.strftime('%Y-%m-%d')
         
-        # Convert dataframe to list of dictionaries
-        return hist.to_dict(orient='records')
+        # Replace non-JSON compliant values NaN with None
+        hist = hist.astype(object).where(pd.notnull(hist), None)
+        kline_data = hist.to_dict(orient='records') 
+
+        return {
+            "kline_data": kline_data,
+            "levels": {**support_levels, **resistance_levels}
+        }
         
     except TickerNotFound:
         raise
