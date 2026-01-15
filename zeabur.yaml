@@ -1,0 +1,16 @@
+apiVersion: zeabur.com/v1
+kind: Template
+metadata:
+  name: stock-valuator
+spec:
+  services:
+    - name: backend
+      template: git
+      spec:
+        source:
+          rootDirectory: backend
+    - name: frontend
+      template: git
+      spec:
+        source:
+          rootDirectory: frontend

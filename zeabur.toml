@@ -1,9 +1,0 @@
-[[services]]
-name = "backend"
-dir = "backend"
-dockerfile = "Dockerfile"
-
-[[services]]
-name = "frontend"
-dir = "frontend"
-dockerfile = "Dockerfile"
