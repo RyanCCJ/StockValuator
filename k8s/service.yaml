@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: stockvaluator-backend
+  labels:
+    app: stockvaluator
+    component: backend
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8000
+      targetPort: 8000
+      protocol: TCP
+  selector:
+    app: stockvaluator
+    component: backend
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: stockvaluator-frontend
+  labels:
+    app: stockvaluator
+    component: frontend
+spec:
+  type: LoadBalancer
+  ports:
+    - port: 80
+      targetPort: 3000
+      protocol: TCP
+  selector:
+    app: stockvaluator
+    component: frontend

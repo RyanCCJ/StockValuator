@@ -8,8 +8,17 @@
 __pycache__/
 *.pyc
 .env
+.env.*
+!.env.example
 /backend/stock_valuator.db
 /backend/celerybeat-schedule
+.venv/
+env/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
 
 # Node.js frontend
 /frontend/node_modules
@@ -20,11 +29,18 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
+# Next.js environment files
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
 # Build artifacts
 build/
 dist/
 
-# Markdown artifacts
+# LLM artifacts
+.agent/
 .gemini/
 .specify/
 specs/
