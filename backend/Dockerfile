@@ -17,8 +17,11 @@ COPY src ./src
 COPY alembic ./alembic
 COPY alembic.ini ./
 
-# Expose port
+# Expose port (can be overridden by PORT env var)
 EXPOSE 8000
 
+# Default port, can be overridden by environment variable
+ENV PORT=8000
+
 # Run the application
-CMD ["sh", "-c", "uv run alembic upgrade head && uv run uvicorn src.main:app --host 0.0.0.0 --port 8000"]
+CMD ["sh", "-c", "uv run alembic upgrade head && uv run uvicorn src.main:app --host 0.0.0.0 --port ${PORT}"]
