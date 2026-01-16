@@ -24,9 +24,8 @@ export default function LoginPage() {
 
         try {
             if (isSignup) {
-                // Call backend signup endpoint first
-                const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
-                const signupResponse = await fetch(`${backendUrl}/auth/signup`, {
+                // Call backend signup endpoint through API proxy
+                const signupResponse = await fetch("/api/auth/signup", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ email, password }),

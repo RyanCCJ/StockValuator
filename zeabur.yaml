@@ -1,16 +1,130 @@
 apiVersion: zeabur.com/v1
 kind: Template
 metadata:
-  name: stock-valuator
+    name: StockValuator
 spec:
-  services:
-    - name: backend
-      template: git
-      spec:
-        source:
-          rootDirectory: backend
-    - name: frontend
-      template: git
-      spec:
-        source:
-          rootDirectory: frontend
+    description: A powerful stock portfolio valuation and tracking system.
+    icon: https://raw.githubusercontent.com/lucide-icons/lucide/main/icons/trending-up.svg
+    variables:
+        - key: FRONTEND_DOMAIN
+          type: DOMAIN
+          name: Frontend Domain
+          description: The domain for your frontend interface.
+        - key: BACKEND_DOMAIN
+          type: DOMAIN
+          name: Backend Domain
+          description: The domain for your backend API server.
+        - key: AUTH_SECRET
+          type: PASSWORD
+          name: Auth Secret
+          description: Random string for NextAuth encryption.
+        - key: GOOGLE_CLIENT_ID
+          type: STRING
+          name: Google Client ID
+          description: OAuth Client ID from Google Cloud Console.
+        - key: GOOGLE_CLIENT_SECRET
+          type: PASSWORD
+          name: Google Client Secret
+          description: OAuth Client Secret from Google Cloud Console.
+    tags:
+        - Finance
+        - Portfolio
+    readme: |
+        # StockValuator
+        StockValuator is a comprehensive portfolio management system supporting custom trade logging, asset allocation analysis, multi-language support, and real-time currency conversion.
+        ### Included Services:
+        - **Frontend**: Built with Next.js 15
+        - **Backend**: Built with FastAPI
+        - **Database**: PostgreSQL 16
+        - **Cache**: Redis 7
+    services:
+        - name: postgres
+          icon: https://raw.githubusercontent.com/zeabur/service-icons/main/marketplace/postgresql.svg
+          template: PREBUILT
+          spec:
+            source:
+                image: postgres:16-alpine
+            ports:
+                - id: database
+                  port: 5432
+                  type: TCP
+            volumes:  
+                - id: data
+                  dir: /var/lib/postgresql/data
+            env:
+                POSTGRES_DB:
+                    default: stockvaluator
+                POSTGRES_PASSWORD:
+                    default: ${PASSWORD}
+                    expose: true
+        - name: redis
+          icon: https://raw.githubusercontent.com/zeabur/service-icons/main/marketplace/redis.svg
+          template: PREBUILT
+          spec:
+            source:
+                image: redis:7-alpine
+            ports:
+                - id: cache
+                  port: 6379
+                  type: TCP
+            volumes:  
+                - id: data
+                  dir: /data
+        - name: backend
+          template: GIT
+          domainKey: BACKEND_DOMAIN
+          dependencies:
+              - postgres
+              - redis
+          spec:
+            source:
+                git:
+                    repoURL: https://github.com/RyanCCJ/StockValuator
+                    branch: 001-stock-valuator-mvp
+                    directory: backend
+            ports:
+                - id: api
+                  port: 8000
+                  type: HTTP
+            env:
+                DATABASE_URL:
+                    default: postgresql+asyncpg://postgres:${POSTGRES_PASSWORD}@postgres:5432/stockvaluator
+                REDIS_URL:
+                    default: redis://redis:6379
+                SECRET_KEY:
+                    default: ${PASSWORD}
+                CORS_ORIGINS:
+                    default: https://${FRONTEND_DOMAIN}
+                GOOGLE_CLIENT_ID:
+                    default: ${GOOGLE_CLIENT_ID}
+                GOOGLE_CLIENT_SECRET:
+                    default: ${GOOGLE_CLIENT_SECRET}
+
+        - name: frontend
+          template: GIT
+          domainKey: FRONTEND_DOMAIN
+          dependencies:
+              - backend
+          spec:
+            source:
+                git:
+                    repoURL: https://github.com/RyanCCJ/StockValuator
+                    branch: 001-stock-valuator-mvp
+                    directory: frontend
+            ports:
+                - id: web
+                  port: 3000
+                  type: HTTP
+            env:
+                BACKEND_URL:
+                    default: https://${BACKEND_DOMAIN}.zeabur.app
+                NEXTAUTH_URL:
+                    default: https://${FRONTEND_DOMAIN}.zeabur.app
+                AUTH_SECRET:
+                    default: ${AUTH_SECRET}
+                GOOGLE_CLIENT_ID:
+                    default: ${GOOGLE_CLIENT_ID}
+                GOOGLE_CLIENT_SECRET:
+                    default: ${GOOGLE_CLIENT_SECRET}
+                AUTH_TRUST_HOST:
+                    default: "true"

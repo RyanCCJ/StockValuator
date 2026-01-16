@@ -39,7 +39,17 @@ async def get_cash_transactions_by_user(
 
 
 async def get_cash_balance(db: AsyncSession, user_id: UUID) -> Decimal:
-    """Calculate total cash balance for a user."""
+    """
+    Calculate total cash balance for a user.
+    
+    Cash Balance = Deposits - Withdrawals - Buy Costs + Sell Proceeds
+    
+    Where:
+    - Buy Costs = (price * quantity) + fees
+    - Sell Proceeds = (price * quantity) - fees
+    """
+    from src.models.trade import Trade, TradeType
+    
     # Sum deposits
     deposit_query = (
         select(func.coalesce(func.sum(CashTransaction.amount), 0))
@@ -47,7 +57,7 @@ async def get_cash_balance(db: AsyncSession, user_id: UUID) -> Decimal:
         .where(CashTransaction.type == CashTransactionType.DEPOSIT)
     )
     deposit_result = await db.execute(deposit_query)
-    total_deposits = deposit_result.scalar() or Decimal("0")
+    total_deposits = Decimal(str(deposit_result.scalar() or 0))
 
     # Sum withdrawals
     withdraw_query = (
@@ -56,9 +66,27 @@ async def get_cash_balance(db: AsyncSession, user_id: UUID) -> Decimal:
         .where(CashTransaction.type == CashTransactionType.WITHDRAW)
     )
     withdraw_result = await db.execute(withdraw_query)
-    total_withdrawals = withdraw_result.scalar() or Decimal("0")
+    total_withdrawals = Decimal(str(withdraw_result.scalar() or 0))
 
-    return Decimal(str(total_deposits)) - Decimal(str(total_withdrawals))
+    # Sum buy costs: (price * quantity) + fees
+    buy_query = (
+        select(func.coalesce(func.sum(Trade.price * Trade.quantity + Trade.fees), 0))
+        .where(Trade.user_id == user_id)
+        .where(Trade.type == TradeType.BUY)
+    )
+    buy_result = await db.execute(buy_query)
+    total_buy_costs = Decimal(str(buy_result.scalar() or 0))
+
+    # Sum sell proceeds: (price * quantity) - fees
+    sell_query = (
+        select(func.coalesce(func.sum(Trade.price * Trade.quantity - Trade.fees), 0))
+        .where(Trade.user_id == user_id)
+        .where(Trade.type == TradeType.SELL)
+    )
+    sell_result = await db.execute(sell_query)
+    total_sell_proceeds = Decimal(str(sell_result.scalar() or 0))
+
+    return total_deposits - total_withdrawals - total_buy_costs + total_sell_proceeds
 
 
 async def get_cash_transaction_by_id(

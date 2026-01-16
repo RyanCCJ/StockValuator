@@ -2,7 +2,7 @@ import NextAuth, { NextAuthConfig } from "next-auth";
 import Google from "next-auth/providers/google";
 import Credentials from "next-auth/providers/credentials";
 
-const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
+const backendUrl = process.env.BACKEND_URL || "http://localhost:8000";
 
 // Build providers list - only include Google if credentials are configured
 const providers: NextAuthConfig["providers"] = [];
@@ -100,4 +100,5 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     pages: {
         signIn: "/login",
     },
+    trustHost: true,
 });

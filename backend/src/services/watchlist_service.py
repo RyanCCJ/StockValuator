@@ -50,9 +50,13 @@ async def update_category(db: AsyncSession, category: Category, data: CategoryUp
 
 async def delete_category(db: AsyncSession, category: Category) -> None:
     """Delete a category (items become uncategorized)."""
-    # Set all items in this category to uncategorized
-    for item in category.watchlist_items:
-        item.category_id = None
+    # Set all items in this category to uncategorized using bulk update
+    from sqlalchemy import update
+    await db.execute(
+        update(WatchlistItem)
+        .where(WatchlistItem.category_id == category.id)
+        .values(category_id=None)
+    )
     await db.delete(category)
     await db.flush()
 

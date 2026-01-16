@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     # Application
     app_name: str = "StockValuator"
     debug: bool = False
+    cors_origins: str = "http://localhost:3000"  # Comma separated list
 
     # Database
     database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/stockvaluator"

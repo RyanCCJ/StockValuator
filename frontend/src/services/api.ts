@@ -1,8 +1,10 @@
 /**
  * API service for backend communication
+ * All requests go through the Next.js API proxy at /api/*
  */
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
+// API base URL - uses Next.js API routes which proxy to the backend
+const API_BASE = "/api";
 
 interface TradeData {
     symbol: string;
@@ -32,7 +34,7 @@ async function fetchWithAuth(
     accessToken: string,
     options: RequestInit = {}
 ): Promise<Response> {
-    return fetch(`${BACKEND_URL}${endpoint}`, {
+    return fetch(`${API_BASE}${endpoint}`, {
         ...options,
         headers: {
             "Content-Type": "application/json",
@@ -132,7 +134,7 @@ interface StockPrice {
 }
 
 export async function getStockPrice(symbol: string): Promise<StockPrice> {
-    const response = await fetch(`${BACKEND_URL}/market/price/${symbol}`);
+    const response = await fetch(`${API_BASE}/market/price/${symbol}`);
     if (!response.ok) {
         throw new Error(`Failed to fetch price for ${symbol}`);
     }
@@ -313,7 +315,7 @@ export async function importTrades(accessToken: string, file: File): Promise<Imp
     const formData = new FormData();
     formData.append("file", file);
 
-    const response = await fetch(`${BACKEND_URL}/import/trades`, {
+    const response = await fetch(`${API_BASE}/import/trades`, {
         method: "POST",
         headers: {
             Authorization: `Bearer ${accessToken}`,
@@ -330,7 +332,7 @@ export async function importCash(accessToken: string, file: File): Promise<Impor
     const formData = new FormData();
     formData.append("file", file);
 
-    const response = await fetch(`${BACKEND_URL}/import/cash`, {
+    const response = await fetch(`${API_BASE}/import/cash`, {
         method: "POST",
         headers: {
             Authorization: `Bearer ${accessToken}`,

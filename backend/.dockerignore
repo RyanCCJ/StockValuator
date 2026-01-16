@@ -1,0 +1,31 @@
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
+
+# Environment Variables
+.env
+.env.*
+!.env.example
+
+# Testing & Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+tests/
+
+# Git
+.git/
+.gitignore
+
+# MyPy
+.mypy_cache/
+
+# IDE
+.idea/
+.vscode/
