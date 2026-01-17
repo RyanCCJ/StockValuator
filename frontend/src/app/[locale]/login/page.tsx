@@ -25,7 +25,8 @@ export default function LoginPage() {
         try {
             if (isSignup) {
                 // Call backend signup endpoint through API proxy
-                const signupResponse = await fetch("/api/auth/signup", {
+                // Note: /api/auth/* is reserved by NextAuth, so we use /user/signup
+                const signupResponse = await fetch("/api/user/signup", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ email, password }),
