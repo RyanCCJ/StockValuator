@@ -19,7 +19,7 @@ router = APIRouter(prefix="/export", tags=["export"])
 async def export_trades(
     current_user: CurrentUser,
     db: DbSession,
-    format: str = Query("csv", regex="^(csv|xlsx)$"),
+    format: str = Query("csv", pattern="^(csv|xlsx)$"),
 ):
     """Export all trades for the current user as CSV or XLSX."""
     trades, _ = await get_trades_by_user(db, current_user.id, skip=0, limit=10000)
@@ -48,7 +48,7 @@ async def export_trades(
 async def export_cash(
     current_user: CurrentUser,
     db: DbSession,
-    format: str = Query("csv", regex="^(csv|xlsx)$"),
+    format: str = Query("csv", pattern="^(csv|xlsx)$"),
 ):
     """Export all cash transactions for the current user as CSV or XLSX."""
     transactions, _ = await get_cash_transactions_by_user(db, current_user.id, skip=0, limit=10000)
