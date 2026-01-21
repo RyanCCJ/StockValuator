@@ -345,9 +345,180 @@ export async function importCash(accessToken: string, file: File): Promise<Impor
     return response.json();
 }
 
+// Technical Analysis API
+interface OHLCVData {
+    date: string;
+    open: number;
+    high: number;
+    low: number;
+    close: number;
+    volume: number;
+}
+
+interface SMAIndicator {
+    ma5: (number | null)[];
+    ma20: (number | null)[];
+    ma60: (number | null)[];
+}
+
+interface MACDIndicator {
+    line: (number | null)[];
+    signal: (number | null)[];
+    histogram: (number | null)[];
+}
+
+interface BollingerBandsIndicator {
+    upper: (number | null)[];
+    middle: (number | null)[];
+    lower: (number | null)[];
+}
+
+interface StochasticIndicator {
+    k: (number | null)[];
+    d: (number | null)[];
+    j: (number | null)[];
+}
+
+interface TechnicalIndicators {
+    sma: SMAIndicator;
+    rsi: (number | null)[];
+    macd: MACDIndicator;
+    bollinger: BollingerBandsIndicator;
+    stochastic: StochasticIndicator;
+    volume: number[];
+}
+
+interface TechnicalDataResponse {
+    symbol: string;
+    ohlcv: OHLCVData[];
+    indicators: TechnicalIndicators;
+}
+
+export async function getTechnicalData(
+    symbol: string,
+    period: "1mo" | "3mo" | "6mo" | "1y" | "2y" = "1y"
+): Promise<TechnicalDataResponse> {
+    const response = await fetch(`${API_BASE}/market/technical/${symbol}?period=${period}`);
+    if (!response.ok) {
+        throw new Error(`Failed to fetch technical data for ${symbol}`);
+    }
+    return response.json();
+}
+
+// Fundamental Data API
+interface InstitutionalHolder {
+    holder: string;
+    percent: number | null;
+}
+
+interface TopHolding {
+    symbol: string;
+    name: string;
+    percent: number;
+}
+
+interface SectorWeighting {
+    sector: string;
+    weight: number;
+}
+
+interface FundamentalDataResponse {
+    symbol: string;
+    is_etf: boolean;
+    long_name: string | null;
+    market_cap: number | null;
+    beta: number | null;
+    fifty_two_week_high: number | null;
+    fifty_two_week_low: number | null;
+    trailing_pe: number | null;
+    dividend_yield: number | null;
+    last_updated: string;
+
+    // Stock/Crypto specific
+    description?: string | null;
+    coin_image_url?: string | null;
+    sector?: string | null;
+    industry?: string | null;
+    forward_pe?: number | null;
+    trailing_eps?: number | null;
+    forward_eps?: number | null;
+    payout_ratio?: number | null;
+    profit_margins?: number | null;
+    revenue_growth?: number | null;
+    analyst_rating?: string | null;
+    book_value?: number | null;
+    institutional_holders?: InstitutionalHolder[];
+
+    // ETF specific
+    beta_3_year?: number | null;
+    expense_ratio?: number | null;
+    top_holdings?: TopHolding[];
+    sector_weightings?: SectorWeighting[];
+}
+
+export async function getFundamentalData(symbol: string): Promise<FundamentalDataResponse> {
+    const response = await fetch(`${API_BASE}/market/fundamental/${symbol}`);
+    if (!response.ok) {
+        throw new Error(`Failed to fetch fundamental data for ${symbol}`);
+    }
+    return response.json();
+}
+
+// Alerts API
+interface PriceAlert {
+    id: string;
+    symbol: string;
+    target_price: number;
+    initial_price: number;
+    status: "active" | "triggered" | "inactive";
+    created_at: string;
+    triggered_at: string | null;
+}
+
+interface AlertListResponse {
+    alerts: PriceAlert[];
+    count: number;
+}
+
+interface CreateAlertData {
+    symbol: string;
+    target_price: number;
+}
+
+export async function getAlerts(accessToken: string): Promise<AlertListResponse> {
+    const response = await fetchWithAuth("/alerts", accessToken);
+    if (!response.ok) {
+        throw new Error("Failed to fetch alerts");
+    }
+    return response.json();
+}
+
+export async function createAlert(accessToken: string, data: CreateAlertData): Promise<PriceAlert> {
+    const response = await fetchWithAuth("/alerts", accessToken, {
+        method: "POST",
+        body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+        throw new Error("Failed to create alert");
+    }
+    return response.json();
+}
+
+export async function deleteAlert(accessToken: string, alertId: string): Promise<void> {
+    const response = await fetchWithAuth(`/alerts/${alertId}`, accessToken, {
+        method: "DELETE",
+    });
+    if (!response.ok) {
+        throw new Error("Failed to delete alert");
+    }
+}
+
 export type {
     Trade, TradeData, TradeListResponse,
     PortfolioSummary, Holding, StockPrice,
     WatchlistItem, Category, WatchlistResponse,
-    CashTransaction, CashTransactionData, CashTransactionListResponse
+    CashTransaction, CashTransactionData, CashTransactionListResponse,
+    TechnicalDataResponse, OHLCVData, TechnicalIndicators,
+    FundamentalDataResponse, InstitutionalHolder, TopHolding, SectorWeighting,
+    PriceAlert, AlertListResponse, CreateAlertData
 };

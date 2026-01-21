@@ -7,15 +7,11 @@ import redis.asyncio as redis
 
 from src.core.config import get_settings
 
-settings = get_settings()
-
-# Redis connection pool
-redis_pool = redis.ConnectionPool.from_url(settings.redis_url)
-
 
 async def get_redis() -> redis.Redis:
-    """Get Redis connection."""
-    return redis.Redis(connection_pool=redis_pool)
+    """Get Redis connection - creates fresh connection to avoid event loop issues."""
+    settings = get_settings()
+    return redis.from_url(settings.redis_url)
 
 
 async def cache_get(key: str) -> Any | None:
@@ -32,6 +28,7 @@ async def cache_get(key: str) -> Any | None:
 
 async def cache_set(key: str, value: Any, ttl: int | None = None) -> None:
     """Set value in cache with optional TTL."""
+    settings = get_settings()
     client = await get_redis()
     try:
         ttl = ttl or settings.cache_ttl_seconds

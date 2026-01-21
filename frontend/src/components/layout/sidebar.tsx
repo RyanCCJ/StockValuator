@@ -86,34 +86,42 @@ export function Sidebar({ accessToken }: SidebarProps) {
 
     const WatchlistItemRow = ({ item }: { item: WatchlistItem }) => {
         const price = prices[item.symbol];
+        const isActive = pathname.includes(`/dashboard/stock/${item.symbol}`);
+
         return (
-            <div className="flex items-center justify-between py-1.5 px-2 rounded hover:bg-accent/50 group text-sm">
-                <div className="flex items-center gap-2">
+            <div className={`flex items-center justify-between py-1.5 px-2 rounded hover:bg-accent/50 group text-sm ${isActive ? 'bg-accent' : ''}`}>
+                <Link
+                    href={`/dashboard/stock/${item.symbol}`}
+                    className="flex-1 flex items-center gap-2"
+                >
                     <span className="font-medium">{item.symbol}</span>
-                </div>
-                <div className="flex items-center gap-2">
                     {price && (
-                        <div className="text-right">
-                            <div className="text-xs">{formatMoney(price.price)}</div>
-                            <div
-                                className={`text-xs ${(price.change_percent || 0) >= 0
-                                    ? "text-green-600 dark:text-green-400"
-                                    : "text-red-600 dark:text-red-400"
-                                    }`}
-                            >
-                                {price.change_percent !== null
-                                    ? `${price.change_percent >= 0 ? "+" : ""}${price.change_percent.toFixed(2)}%`
-                                    : ""}
+                        <div className="flex-1 flex justify-end">
+                            <div className="text-right">
+                                <div className="text-xs">{formatMoney(price.price)}</div>
+                                <div
+                                    className={`text-xs ${(price.change_percent || 0) >= 0
+                                        ? "text-green-600 dark:text-green-400"
+                                        : "text-red-600 dark:text-red-400"
+                                        }`}
+                                >
+                                    {price.change_percent !== null
+                                        ? `${price.change_percent >= 0 ? "+" : ""}${price.change_percent.toFixed(2)}%`
+                                        : ""}
+                                </div>
                             </div>
                         </div>
                     )}
-                    <button
-                        onClick={() => handleRemoveItem(item.id)}
-                        className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive text-xs"
-                    >
-                        ✕
-                    </button>
-                </div>
+                </Link>
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        handleRemoveItem(item.id);
+                    }}
+                    className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive text-xs ml-2"
+                >
+                    ✕
+                </button>
             </div>
         );
     };

@@ -52,6 +52,39 @@ After creation, note down the connection information for each service.
 
 ---
 
+## Step 4: Deploy Celery Worker from GitHub
+
+1. Click "Deploy from GitHub"
+2. Select `RyanCCJ/StockValuator` → Choose `backend/celery-worker` folder
+3. Set environment variables:
+
+| Variable | Value | Description |
+|----------|-------|-------------|
+| `DATABASE_URL` | Same as Backend | PostgreSQL connection string |
+| `REDIS_URL` | Same as Backend | Redis connection string |
+| `SECRET_KEY` | Same as Backend | Same secret key |
+
+> ⚠️ **No domain binding needed** - Celery Worker runs as a background process
+
+---
+
+## Step 5: Deploy Celery Beat from GitHub
+
+1. Click "Deploy from GitHub"
+2. Select `RyanCCJ/StockValuator` → Choose `backend/celery-beat` folder
+3. Set environment variables:
+
+| Variable | Value | Description |
+|----------|-------|-------------|
+| `DATABASE_URL` | Same as Backend | PostgreSQL connection string |
+| `REDIS_URL` | Same as Backend | Redis connection string |
+| `SECRET_KEY` | Same as Backend | Same secret key |
+
+> ⚠️ **No domain binding needed** - Celery Beat runs as a scheduler process
+> ⚠️ **Only deploy 1 replica** - Multiple Beat instances will cause duplicate task scheduling
+
+---
+
 ## Important Notes
 
 ### ⚠️ DATABASE_URL Format
@@ -86,3 +119,4 @@ openssl rand -hex 32
 # AUTH_SECRET (Frontend)
 openssl rand -base64 32
 ```
+

@@ -44,9 +44,13 @@ class User(Base, UUIDMixin, TimestampMixin):
     watchlist_items: Mapped[list["WatchlistItem"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
+    price_alerts: Mapped[list["PriceAlert"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
 
 
 # Forward references for relationships
 from src.models.trade import Trade  # noqa: E402, F401
 from src.models.cash import CashTransaction  # noqa: E402, F401
 from src.models.watchlist import Category, WatchlistItem  # noqa: E402, F401
+from src.models.alerts import PriceAlert  # noqa: E402, F401

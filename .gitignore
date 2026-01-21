@@ -11,7 +11,7 @@ __pycache__/
 .env.*
 !.env.example
 /backend/stock_valuator.db
-/backend/celerybeat-schedule
+celerybeat-schedule*
 .venv/
 env/
 venv/

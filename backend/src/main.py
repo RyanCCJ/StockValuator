@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.core.config import get_settings
-from src.api.routes import auth, trades, watchlist, market, portfolio, cash, export, import_, user
+from src.api.routes import auth, trades, watchlist, market, portfolio, cash, export, import_, user, alerts, email
 
 settings = get_settings()
 
@@ -62,3 +62,5 @@ app.include_router(cash.router)
 app.include_router(export.router)
 app.include_router(import_.router)
 app.include_router(user.router)
+app.include_router(alerts.router)
+app.include_router(email.router)
