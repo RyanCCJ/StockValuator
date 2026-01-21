@@ -28,6 +28,9 @@ After creation, note down the connection information for each service.
 | `GOOGLE_CLIENT_ID` | Google OAuth Client ID | From Google Cloud Console |
 | `GOOGLE_CLIENT_SECRET` | Google OAuth Client Secret | From Google Cloud Console |
 | `PORT` | `8080` | ⚠️ Zeabur defaults to 8080 |
+| `GMAIL_REDIRECT_URI` | `https://<backend-domain>.zeabur.app/email/oauth/callback` | For Gmail OAuth |
+| `GMAIL_REFRESH_TOKEN` | OAuth refresh token | Get from /email/oauth/authorize |
+| `GMAIL_USER_EMAIL` | Your Gmail address | For sending price alerts |
 
 4. Bind Domain (e.g., `stock-valuator-api`)
 
@@ -47,6 +50,7 @@ After creation, note down the connection information for each service.
 | `GOOGLE_CLIENT_ID` | Google OAuth Client ID | Same as Backend |
 | `GOOGLE_CLIENT_SECRET` | Google OAuth Client Secret | Same as Backend |
 | `AUTH_TRUST_HOST` | `true` | Required, otherwise UntrustedHost error |
+| `NEXT_PUBLIC_BRANDFETCH_CLIENT_ID` | Brandfetch Client ID | Optional, for company logos |
 
 4. Bind Domain (e.g., `stock-valuator`)
 
@@ -55,7 +59,7 @@ After creation, note down the connection information for each service.
 ## Step 4: Deploy Celery Worker from GitHub
 
 1. Click "Deploy from GitHub"
-2. Select `RyanCCJ/StockValuator` → Choose `backend/celery-worker` folder
+2. Select `RyanCCJ/StockValuator` → Choose `celery-worker` folder (at repo root)
 3. Set environment variables:
 
 | Variable | Value | Description |
@@ -71,7 +75,7 @@ After creation, note down the connection information for each service.
 ## Step 5: Deploy Celery Beat from GitHub
 
 1. Click "Deploy from GitHub"
-2. Select `RyanCCJ/StockValuator` → Choose `backend/celery-beat` folder
+2. Select `RyanCCJ/StockValuator` → Choose `celery-beat` folder (at repo root)
 3. Set environment variables:
 
 | Variable | Value | Description |
