@@ -60,14 +60,21 @@ After creation, note down the connection information for each service.
 
 1. Click "Deploy from GitHub"
 2. Select `RyanCCJ/StockValuator` → Choose `backend` folder
-3. **Important**: In Settings → Build, set Dockerfile path to `Dockerfile.worker`
+3. **Configure Docker**:
+   - Go to Settings → **Docker**
+   - Paste the content of `backend/Dockerfile.worker` into the Dockerfile field
 4. Set environment variables:
 
 | Variable | Value | Description |
 |----------|-------|-------------|
-| `DATABASE_URL` | Same as Backend | PostgreSQL connection string |
-| `REDIS_URL` | Same as Backend | Redis connection string |
+| `DATABASE_URL` | Same as Backend | `postgresql+asyncpg://...` from PostgreSQL service |
+| `REDIS_URL` | Same as Backend | From Redis service |
 | `SECRET_KEY` | Same as Backend | Same secret key |
+| `GOOGLE_CLIENT_ID` | Same as Backend | For Gmail API |
+| `GOOGLE_CLIENT_SECRET` | Same as Backend | For Gmail API |
+| `GMAIL_REDIRECT_URI` | Same as Backend | OAuth callback URL |
+| `GMAIL_REFRESH_TOKEN` | Same as Backend | OAuth refresh token |
+| `GMAIL_USER_EMAIL` | Same as Backend | Email sender address |
 
 > ⚠️ **No domain binding needed** - Celery Worker runs as a background process
 
@@ -77,8 +84,10 @@ After creation, note down the connection information for each service.
 
 1. Click "Deploy from GitHub"
 2. Select `RyanCCJ/StockValuator` → Choose `backend` folder
-3. **Important**: In Settings → Build, set Dockerfile path to `Dockerfile.beat`
-4. Set environment variables:
+3. **Configure Docker**:
+   - Go to Settings → **Docker**
+   - Paste the content of `backend/Dockerfile.beat` into the Dockerfile field
+4. Set environment variables (same as Celery Worker):
 
 | Variable | Value | Description |
 |----------|-------|-------------|

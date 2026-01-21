@@ -78,7 +78,7 @@ spec:
               - redis
           spec:
             source:
-                image: ryanccj/stockvaluator-backend:latest
+                image: your-docker-hub-username/stockvaluator-backend:latest  # Replace with your image
             ports:
                 - id: api
                   port: 8000
@@ -104,7 +104,7 @@ spec:
               - redis
           spec:
             source:
-                image: ryanccj/stockvaluator-backend:latest
+                image: your-docker-hub-username/stockvaluator-backend:latest  # Same image as backend
             command: ["uv", "run", "celery", "-A", "src.worker:celery_app", "worker", "--loglevel=info"]
             env:
                 DATABASE_URL:
@@ -121,7 +121,7 @@ spec:
               - redis
           spec:
             source:
-                image: ryanccj/stockvaluator-backend:latest
+                image: your-docker-hub-username/stockvaluator-backend:latest  # Same image as backend
             command: ["uv", "run", "celery", "-A", "src.worker:celery_app", "beat", "--loglevel=info"]
             env:
                 DATABASE_URL:
@@ -138,7 +138,7 @@ spec:
               - backend
           spec:
             source:
-                image: ryanccj/stockvaluator-frontend:latest
+                image: your-docker-hub-username/stockvaluator-frontend:latest  # Replace with your image
             ports:
                 - id: web
                   port: 3000
