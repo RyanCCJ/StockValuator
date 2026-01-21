@@ -59,8 +59,9 @@ After creation, note down the connection information for each service.
 ## Step 4: Deploy Celery Worker from GitHub
 
 1. Click "Deploy from GitHub"
-2. Select `RyanCCJ/StockValuator` → Choose `celery-worker` folder (at repo root)
-3. Set environment variables:
+2. Select `RyanCCJ/StockValuator` → Choose `backend` folder
+3. **Important**: In Settings → Build, set Dockerfile path to `Dockerfile.worker`
+4. Set environment variables:
 
 | Variable | Value | Description |
 |----------|-------|-------------|
@@ -75,8 +76,9 @@ After creation, note down the connection information for each service.
 ## Step 5: Deploy Celery Beat from GitHub
 
 1. Click "Deploy from GitHub"
-2. Select `RyanCCJ/StockValuator` → Choose `celery-beat` folder (at repo root)
-3. Set environment variables:
+2. Select `RyanCCJ/StockValuator` → Choose `backend` folder
+3. **Important**: In Settings → Build, set Dockerfile path to `Dockerfile.beat`
+4. Set environment variables:
 
 | Variable | Value | Description |
 |----------|-------|-------------|

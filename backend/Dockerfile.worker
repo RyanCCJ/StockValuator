@@ -1,0 +1,21 @@
+# Celery Worker Dockerfile
+FROM python:3.12-slim
+
+# Install uv
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+
+WORKDIR /app
+
+# Copy project files (same as main Dockerfile)
+COPY pyproject.toml uv.lock README.md ./
+
+# Install dependencies
+RUN uv sync --frozen --no-dev
+
+# Copy application code
+COPY src ./src
+COPY alembic ./alembic
+COPY alembic.ini ./
+
+# Run the celery worker (instead of uvicorn)
+CMD ["uv", "run", "celery", "-A", "src.worker:celery_app", "worker", "--loglevel=info"]
