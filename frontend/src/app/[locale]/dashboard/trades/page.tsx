@@ -32,9 +32,9 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { getTrades, createTrade, deleteTrade, updateTrade, getPortfolioSummary, exportTrades, importTrades, Trade, TradeData, PortfolioSummary, ImportResult } from "@/services/api";
-import { Sidebar } from "@/components/layout/sidebar";
 import { PortfolioBalanceCard } from "@/components/dashboard/portfolio-balance-card";
 import { useCurrency } from "@/context/currency-context";
+import { Loader2 } from "lucide-react";
 
 export default function TradesPage() {
     const t = useTranslations("Trades");
@@ -90,8 +90,8 @@ export default function TradesPage() {
 
     if (status === "loading" || isLoading) {
         return (
-            <div className="min-h-screen flex items-center justify-center">
-                <div className="animate-pulse text-muted-foreground">{tCommon("loading")}</div>
+            <div className="flex items-center justify-center min-h-[400px]">
+                <Loader2 className="h-8 w-8 animate-spin" />
             </div>
         );
     }
@@ -223,309 +223,302 @@ export default function TradesPage() {
     };
 
     return (
-        <div className="flex min-h-screen">
-            <Sidebar accessToken={accessToken} />
-
-            {/* Main content */}
-            <main className="flex-1 p-6">
-                <div className="max-w-7xl mx-auto space-y-6">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <h1 className="text-3xl font-bold">{t('title')}</h1>
-                            <p className="text-muted-foreground">{t('subtitle')}</p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            {/* Export Dropdown */}
-                            <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                    <Button variant="outline">
-                                        <Download className="h-4 w-4 mr-2" />
-                                        {t('export')}
-                                    </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent>
-                                    <DropdownMenuItem onClick={() => handleExport("csv")}>
-                                        {tCommon('csv')}
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => handleExport("xlsx")}>
-                                        {tCommon('xlsx')}
-                                    </DropdownMenuItem>
-                                </DropdownMenuContent>
-                            </DropdownMenu>
-
-                            {/* Import Button */}
-                            <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
-                                <Upload className="h-4 w-4 mr-2" />
-                                {t('import')}
-                            </Button>
-                            <input
-                                ref={fileInputRef}
-                                type="file"
-                                accept=".csv,.xlsx"
-                                className="hidden"
-                                onChange={handleImport}
-                            />
-
-                            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                                <DialogTrigger asChild>
-                                    <Button>{t('add_trade')}</Button>
-                                </DialogTrigger>
-                                <DialogContent>
-                                    <DialogHeader>
-                                        <DialogTitle>{t('add_new_trade')}</DialogTitle>
-                                        <DialogDescription>
-                                            {t('dialog_description')}
-                                        </DialogDescription>
-                                    </DialogHeader>
-                                    <form onSubmit={handleSubmit} className="space-y-4">
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div className="space-y-2">
-                                                <Label htmlFor="symbol">{t('symbol')}</Label>
-                                                <Input
-                                                    id="symbol"
-                                                    placeholder="AAPL"
-                                                    value={formData.symbol}
-                                                    onChange={(e) =>
-                                                        setFormData({ ...formData, symbol: e.target.value.toUpperCase() })
-                                                    }
-                                                    required
-                                                />
-                                            </div>
-                                            <div className="space-y-2">
-                                                <Label htmlFor="type">{t('type')}</Label>
-                                                <select
-                                                    id="type"
-                                                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs"
-                                                    value={formData.type}
-                                                    onChange={(e) =>
-                                                        setFormData({ ...formData, type: e.target.value as "buy" | "sell" })
-                                                    }
-                                                >
-                                                    <option value="buy">{t('buy')}</option>
-                                                    <option value="sell">{t('sell')}</option>
-                                                </select>
-                                            </div>
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label htmlFor="date">{t('date')}</Label>
-                                            <Input
-                                                id="date"
-                                                type="date"
-                                                value={formData.date}
-                                                onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                                                required
-                                            />
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div className="space-y-2">
-                                                <Label htmlFor="price">{t('price')}</Label>
-                                                <Input
-                                                    id="price"
-                                                    type="number"
-                                                    step="0.01"
-                                                    min="0.01"
-                                                    placeholder="150.00"
-                                                    value={formData.price || ""}
-                                                    onChange={(e) =>
-                                                        setFormData({ ...formData, price: parseFloat(e.target.value) || 0 })
-                                                    }
-                                                    required
-                                                />
-                                            </div>
-                                            <div className="space-y-2">
-                                                <Label htmlFor="quantity">{t('quantity')}</Label>
-                                                <Input
-                                                    id="quantity"
-                                                    type="number"
-                                                    step="0.000001"
-                                                    min="0.000001"
-                                                    placeholder="10"
-                                                    value={formData.quantity || ""}
-                                                    onChange={(e) =>
-                                                        setFormData({ ...formData, quantity: parseFloat(e.target.value) || 0 })
-                                                    }
-                                                    required
-                                                />
-                                            </div>
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div className="space-y-2">
-                                                <Label htmlFor="fees">{t('fees')}</Label>
-                                                <Input
-                                                    id="fees"
-                                                    type="number"
-                                                    step="0.01"
-                                                    min="0"
-                                                    placeholder="0.00"
-                                                    value={formData.fees || ""}
-                                                    onChange={(e) =>
-                                                        setFormData({ ...formData, fees: parseFloat(e.target.value) || 0 })
-                                                    }
-                                                />
-                                            </div>
-                                            <div className="space-y-2">
-                                                <Label htmlFor="currency">{t('currency')}</Label>
-                                                <Input
-                                                    id="currency"
-                                                    placeholder="USD"
-                                                    value={formData.currency}
-                                                    onChange={(e) =>
-                                                        setFormData({ ...formData, currency: e.target.value.toUpperCase() })
-                                                    }
-                                                />
-                                            </div>
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label htmlFor="notes">{t('notes')}</Label>
-                                            <textarea
-                                                id="notes"
-                                                className="flex min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                                                placeholder={t('notes_placeholder')}
-                                                value={formData.notes || ""}
-                                                onChange={(e) =>
-                                                    setFormData({ ...formData, notes: e.target.value })
-                                                }
-                                            />
-                                        </div>
-                                        <Button type="submit" className="w-full">
-                                            {t('add_trade')}
-                                        </Button>
-                                    </form>
-                                </DialogContent>
-                            </Dialog>
-                        </div>
-                    </div>
-
-                    {/* Portfolio Balance Card */}
-                    <PortfolioBalanceCard portfolio={portfolio} isLoading={isLoading} />
-
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>{t('history_title')}</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            {trades.length === 0 ? (
-                                <div className="text-center py-8 text-muted-foreground">
-                                    {t('no_trades')}
-                                </div>
-                            ) : (
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead>
-                                                <Button variant="ghost" onClick={() => handleSort("date")}>
-                                                    {t('date')}
-                                                    {sortConfig.key === "date" ? (
-                                                        sortConfig.direction === "asc" ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />
-                                                    ) : (
-                                                        <ArrowUpDown className="ml-2 h-4 w-4" />
-                                                    )}
-                                                </Button>
-                                            </TableHead>
-                                            <TableHead>
-                                                <Button variant="ghost" onClick={() => handleSort("symbol")}>
-                                                    {t('symbol')}
-                                                    {sortConfig.key === "symbol" ? (
-                                                        sortConfig.direction === "asc" ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />
-                                                    ) : (
-                                                        <ArrowUpDown className="ml-2 h-4 w-4" />
-                                                    )}
-                                                </Button>
-                                            </TableHead>
-                                            <TableHead>
-                                                <Button variant="ghost" onClick={() => handleSort("type")}>
-                                                    {t('type')}
-                                                    {sortConfig.key === "type" ? (
-                                                        sortConfig.direction === "asc" ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />
-                                                    ) : (
-                                                        <ArrowUpDown className="ml-2 h-4 w-4" />
-                                                    )}
-                                                </Button>
-                                            </TableHead>
-                                            <TableHead className="text-right">
-                                                <Button variant="ghost" onClick={() => handleSort("price")}>
-                                                    {t('price')}
-                                                    {sortConfig.key === "price" ? (
-                                                        sortConfig.direction === "asc" ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />
-                                                    ) : (
-                                                        <ArrowUpDown className="ml-2 h-4 w-4" />
-                                                    )}
-                                                </Button>
-                                            </TableHead>
-                                            <TableHead className="text-right">
-                                                <Button variant="ghost" onClick={() => handleSort("quantity")}>
-                                                    {t('quantity')}
-                                                    {sortConfig.key === "quantity" ? (
-                                                        sortConfig.direction === "asc" ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />
-                                                    ) : (
-                                                        <ArrowUpDown className="ml-2 h-4 w-4" />
-                                                    )}
-                                                </Button>
-                                            </TableHead>
-                                            <TableHead className="text-right">
-                                                <Button variant="ghost" onClick={() => handleSort("total_value")}>
-                                                    {t('total')}
-                                                    {sortConfig.key === "total_value" ? (
-                                                        sortConfig.direction === "asc" ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />
-                                                    ) : (
-                                                        <ArrowUpDown className="ml-2 h-4 w-4" />
-                                                    )}
-                                                </Button>
-                                            </TableHead>
-                                            <TableHead></TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {sortedTrades.map((trade) => (
-                                            <TableRow
-                                                key={trade.id}
-                                                className="cursor-pointer hover:bg-muted/50"
-                                                onClick={() => handleViewNotes(trade)}
-                                            >
-                                                <TableCell>
-                                                    {new Date(trade.date).toLocaleDateString()}
-                                                </TableCell>
-                                                <TableCell className="font-medium">{trade.symbol}</TableCell>
-                                                <TableCell>
-                                                    <span
-                                                        className={
-                                                            trade.type === "buy"
-                                                                ? "text-green-600 dark:text-green-400"
-                                                                : "text-red-600 dark:text-red-400"
-                                                        }
-                                                    >
-                                                        {t(trade.type)}
-                                                    </span>
-                                                </TableCell>
-                                                <TableCell className="text-right">
-                                                    {formatMoney(Number(trade.price))}
-                                                </TableCell>
-                                                <TableCell className="text-right">{Number(trade.quantity)}</TableCell>
-                                                <TableCell className="text-right">
-                                                    {formatMoney(Number(trade.price) * Number(trade.quantity))}
-                                                </TableCell>
-                                                <TableCell>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        className="text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            handleDelete(trade.id);
-                                                        }}
-                                                    >
-                                                        {t('delete')}
-                                                    </Button>
-                                                </TableCell>
-                                            </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
-                            )}
-                        </CardContent>
-                    </Card>
+        <div className="max-w-7xl mx-auto space-y-6">
+            <div className="flex items-center justify-between">
+                <div>
+                    <h1 className="text-3xl font-bold">{t('title')}</h1>
+                    <p className="text-muted-foreground">{t('subtitle')}</p>
                 </div>
-            </main>
+                <div className="flex items-center gap-2">
+                    {/* Export Dropdown */}
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="outline">
+                                <Download className="h-4 w-4 mr-2" />
+                                {t('export')}
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent>
+                            <DropdownMenuItem onClick={() => handleExport("csv")}>
+                                {tCommon('csv')}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleExport("xlsx")}>
+                                {tCommon('xlsx')}
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+
+                    {/* Import Button */}
+                    <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
+                        <Upload className="h-4 w-4 mr-2" />
+                        {t('import')}
+                    </Button>
+                    <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept=".csv,.xlsx"
+                        className="hidden"
+                        onChange={handleImport}
+                    />
+
+                    <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                        <DialogTrigger asChild>
+                            <Button>{t('add_trade')}</Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                            <DialogHeader>
+                                <DialogTitle>{t('add_new_trade')}</DialogTitle>
+                                <DialogDescription>
+                                    {t('dialog_description')}
+                                </DialogDescription>
+                            </DialogHeader>
+                            <form onSubmit={handleSubmit} className="space-y-4">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="symbol">{t('symbol')}</Label>
+                                        <Input
+                                            id="symbol"
+                                            placeholder="AAPL"
+                                            value={formData.symbol}
+                                            onChange={(e) =>
+                                                setFormData({ ...formData, symbol: e.target.value.toUpperCase() })
+                                            }
+                                            required
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="type">{t('type')}</Label>
+                                        <select
+                                            id="type"
+                                            className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs"
+                                            value={formData.type}
+                                            onChange={(e) =>
+                                                setFormData({ ...formData, type: e.target.value as "buy" | "sell" })
+                                            }
+                                        >
+                                            <option value="buy">{t('buy')}</option>
+                                            <option value="sell">{t('sell')}</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="date">{t('date')}</Label>
+                                    <Input
+                                        id="date"
+                                        type="date"
+                                        value={formData.date}
+                                        onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                                        required
+                                    />
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="price">{t('price')}</Label>
+                                        <Input
+                                            id="price"
+                                            type="number"
+                                            step="0.01"
+                                            min="0.01"
+                                            placeholder="150.00"
+                                            value={formData.price || ""}
+                                            onChange={(e) =>
+                                                setFormData({ ...formData, price: parseFloat(e.target.value) || 0 })
+                                            }
+                                            required
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="quantity">{t('quantity')}</Label>
+                                        <Input
+                                            id="quantity"
+                                            type="number"
+                                            step="0.000001"
+                                            min="0.000001"
+                                            placeholder="10"
+                                            value={formData.quantity || ""}
+                                            onChange={(e) =>
+                                                setFormData({ ...formData, quantity: parseFloat(e.target.value) || 0 })
+                                            }
+                                            required
+                                        />
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="fees">{t('fees')}</Label>
+                                        <Input
+                                            id="fees"
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            placeholder="0.00"
+                                            value={formData.fees || ""}
+                                            onChange={(e) =>
+                                                setFormData({ ...formData, fees: parseFloat(e.target.value) || 0 })
+                                            }
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="currency">{t('currency')}</Label>
+                                        <Input
+                                            id="currency"
+                                            placeholder="USD"
+                                            value={formData.currency}
+                                            onChange={(e) =>
+                                                setFormData({ ...formData, currency: e.target.value.toUpperCase() })
+                                            }
+                                        />
+                                    </div>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="notes">{t('notes')}</Label>
+                                    <textarea
+                                        id="notes"
+                                        className="flex min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                                        placeholder={t('notes_placeholder')}
+                                        value={formData.notes || ""}
+                                        onChange={(e) =>
+                                            setFormData({ ...formData, notes: e.target.value })
+                                        }
+                                    />
+                                </div>
+                                <Button type="submit" className="w-full">
+                                    {t('add_trade')}
+                                </Button>
+                            </form>
+                        </DialogContent>
+                    </Dialog>
+                </div>
+            </div>
+
+            {/* Portfolio Balance Card */}
+            <PortfolioBalanceCard portfolio={portfolio} isLoading={isLoading} />
+
+            <Card>
+                <CardHeader>
+                    <CardTitle>{t('history_title')}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    {trades.length === 0 ? (
+                        <div className="text-center py-8 text-muted-foreground">
+                            {t('no_trades')}
+                        </div>
+                    ) : (
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>
+                                        <Button variant="ghost" onClick={() => handleSort("date")}>
+                                            {t('date')}
+                                            {sortConfig.key === "date" ? (
+                                                sortConfig.direction === "asc" ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />
+                                            ) : (
+                                                <ArrowUpDown className="ml-2 h-4 w-4" />
+                                            )}
+                                        </Button>
+                                    </TableHead>
+                                    <TableHead>
+                                        <Button variant="ghost" onClick={() => handleSort("symbol")}>
+                                            {t('symbol')}
+                                            {sortConfig.key === "symbol" ? (
+                                                sortConfig.direction === "asc" ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />
+                                            ) : (
+                                                <ArrowUpDown className="ml-2 h-4 w-4" />
+                                            )}
+                                        </Button>
+                                    </TableHead>
+                                    <TableHead>
+                                        <Button variant="ghost" onClick={() => handleSort("type")}>
+                                            {t('type')}
+                                            {sortConfig.key === "type" ? (
+                                                sortConfig.direction === "asc" ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />
+                                            ) : (
+                                                <ArrowUpDown className="ml-2 h-4 w-4" />
+                                            )}
+                                        </Button>
+                                    </TableHead>
+                                    <TableHead className="text-right">
+                                        <Button variant="ghost" onClick={() => handleSort("price")}>
+                                            {t('price')}
+                                            {sortConfig.key === "price" ? (
+                                                sortConfig.direction === "asc" ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />
+                                            ) : (
+                                                <ArrowUpDown className="ml-2 h-4 w-4" />
+                                            )}
+                                        </Button>
+                                    </TableHead>
+                                    <TableHead className="text-right">
+                                        <Button variant="ghost" onClick={() => handleSort("quantity")}>
+                                            {t('quantity')}
+                                            {sortConfig.key === "quantity" ? (
+                                                sortConfig.direction === "asc" ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />
+                                            ) : (
+                                                <ArrowUpDown className="ml-2 h-4 w-4" />
+                                            )}
+                                        </Button>
+                                    </TableHead>
+                                    <TableHead className="text-right">
+                                        <Button variant="ghost" onClick={() => handleSort("total_value")}>
+                                            {t('total')}
+                                            {sortConfig.key === "total_value" ? (
+                                                sortConfig.direction === "asc" ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />
+                                            ) : (
+                                                <ArrowUpDown className="ml-2 h-4 w-4" />
+                                            )}
+                                        </Button>
+                                    </TableHead>
+                                    <TableHead></TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {sortedTrades.map((trade) => (
+                                    <TableRow
+                                        key={trade.id}
+                                        className="cursor-pointer hover:bg-muted/50"
+                                        onClick={() => handleViewNotes(trade)}
+                                    >
+                                        <TableCell>
+                                            {new Date(trade.date).toLocaleDateString()}
+                                        </TableCell>
+                                        <TableCell className="font-medium">{trade.symbol}</TableCell>
+                                        <TableCell>
+                                            <span
+                                                className={
+                                                    trade.type === "buy"
+                                                        ? "text-green-600 dark:text-green-400"
+                                                        : "text-red-600 dark:text-red-400"
+                                                }
+                                            >
+                                                {t(trade.type)}
+                                            </span>
+                                        </TableCell>
+                                        <TableCell className="text-right">
+                                            {formatMoney(Number(trade.price))}
+                                        </TableCell>
+                                        <TableCell className="text-right">{Number(trade.quantity)}</TableCell>
+                                        <TableCell className="text-right">
+                                            {formatMoney(Number(trade.price) * Number(trade.quantity))}
+                                        </TableCell>
+                                        <TableCell>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleDelete(trade.id);
+                                                }}
+                                            >
+                                                {t('delete')}
+                                            </Button>
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    )}
+                </CardContent>
+            </Card>
 
             {/* Notes View/Edit Dialog */}
             <Dialog open={isNotesDialogOpen} onOpenChange={setIsNotesDialogOpen}>
@@ -560,3 +553,4 @@ export default function TradesPage() {
         </div>
     );
 }
+

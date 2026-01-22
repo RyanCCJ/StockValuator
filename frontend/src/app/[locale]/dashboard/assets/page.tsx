@@ -31,7 +31,6 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Sidebar } from "@/components/layout/sidebar";
 import { PortfolioBalanceCard } from "@/components/dashboard/portfolio-balance-card";
 import {
     getCashTransactions,
@@ -47,6 +46,7 @@ import {
     ImportResult,
 } from "@/services/api";
 import { useCurrency } from "@/context/currency-context";
+import { Loader2 } from "lucide-react";
 
 export default function AssetsPage() {
     const t = useTranslations("Assets");
@@ -100,8 +100,8 @@ export default function AssetsPage() {
 
     if (status === "loading") {
         return (
-            <div className="min-h-screen flex items-center justify-center">
-                <div className="animate-pulse text-muted-foreground">{tCommon("loading")}</div>
+            <div className="flex items-center justify-center min-h-[400px]">
+                <Loader2 className="h-8 w-8 animate-spin" />
             </div>
         );
     }
@@ -225,279 +225,273 @@ export default function AssetsPage() {
     // formatMoney is now provided by useCurrency()
 
     return (
-        <div className="flex min-h-screen">
-            <Sidebar accessToken={accessToken} />
-
-            <main className="flex-1 p-6 overflow-auto">
-                <div className="max-w-5xl mx-auto space-y-6">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <h1 className="text-3xl font-bold">{t('title')}</h1>
-                            <p className="text-muted-foreground">
-                                {t('subtitle')}
-                            </p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            {/* Export Dropdown */}
-                            <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                    <Button variant="outline">
-                                        <Download className="h-4 w-4 mr-2" />
-                                        {t('export')}
-                                    </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent>
-                                    <DropdownMenuItem onClick={() => handleExport("csv")}>
-                                        {tCommon('csv')}
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => handleExport("xlsx")}>
-                                        {tCommon('xlsx')}
-                                    </DropdownMenuItem>
-                                </DropdownMenuContent>
-                            </DropdownMenu>
-
-                            {/* Import Button */}
-                            <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
-                                <Upload className="h-4 w-4 mr-2" />
-                                {t('import')}
-                            </Button>
-                            <input
-                                ref={fileInputRef}
-                                type="file"
-                                accept=".csv,.xlsx"
-                                className="hidden"
-                                onChange={handleImport}
-                            />
-
-                            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                                <DialogTrigger asChild>
-                                    <Button>{t('add_transaction')}</Button>
-                                </DialogTrigger>
-                                <DialogContent>
-                                    <DialogHeader>
-                                        <DialogTitle>{t('add_cash_transaction')}</DialogTitle>
-                                        <DialogDescription>
-                                            {t('dialog_description')}
-                                        </DialogDescription>
-                                    </DialogHeader>
-                                    <form onSubmit={handleSubmit} className="space-y-4">
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div className="space-y-2">
-                                                <Label htmlFor="type">{tTrades("type")}</Label>
-                                                <select
-                                                    id="type"
-                                                    className="w-full h-10 px-3 border rounded-md bg-background"
-                                                    value={formData.type}
-                                                    onChange={(e) =>
-                                                        setFormData({
-                                                            ...formData,
-                                                            type: e.target.value as "deposit" | "withdraw",
-                                                        })
-                                                    }
-                                                >
-                                                    <option value="deposit">{t('deposit')}</option>
-                                                    <option value="withdraw">{t('withdraw')}</option>
-                                                </select>
-                                            </div>
-                                            <div className="space-y-2">
-                                                <Label htmlFor="date">{tTrades("date")}</Label>
-                                                <Input
-                                                    id="date"
-                                                    type="date"
-                                                    value={formData.date}
-                                                    onChange={(e) =>
-                                                        setFormData({ ...formData, date: e.target.value })
-                                                    }
-                                                    required
-                                                />
-                                            </div>
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div className="space-y-2">
-                                                <Label htmlFor="amount">{t('amount')}</Label>
-                                                <Input
-                                                    id="amount"
-                                                    type="number"
-                                                    step="0.01"
-                                                    min="0"
-                                                    value={formData.amount || ""}
-                                                    onChange={(e) =>
-                                                        setFormData({
-                                                            ...formData,
-                                                            amount: parseFloat(e.target.value) || 0,
-                                                        })
-                                                    }
-                                                    required
-                                                />
-                                            </div>
-                                            <div className="space-y-2">
-                                                <Label htmlFor="currency">{tTrades("currency")}</Label>
-                                                <select
-                                                    id="currency"
-                                                    className="w-full h-10 px-3 border rounded-md bg-background"
-                                                    value={formData.currency}
-                                                    onChange={(e) =>
-                                                        setFormData({ ...formData, currency: e.target.value })
-                                                    }
-                                                >
-                                                    <option value="USD">USD</option>
-                                                    <option value="TWD">TWD</option>
-                                                    <option value="EUR">EUR</option>
-                                                </select>
-                                            </div>
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label htmlFor="notes">{t('notes_placeholder')}</Label>
-                                            <Input
-                                                id="notes"
-                                                value={formData.notes || ""}
-                                                onChange={(e) =>
-                                                    setFormData({ ...formData, notes: e.target.value })
-                                                }
-                                                placeholder={t('notes_placeholder')}
-                                            />
-                                        </div>
-                                        <div className="flex justify-end gap-2">
-                                            <Button
-                                                type="button"
-                                                variant="outline"
-                                                onClick={() => setIsDialogOpen(false)}
-                                            >
-                                                {t('cancel')}
-                                            </Button>
-                                            <Button type="submit">{t('add_transaction')}</Button>
-                                        </div>
-                                    </form>
-                                </DialogContent>
-                            </Dialog>
-                        </div>
-                    </div>
-
-                    {/* Portfolio Balance Card */}
-                    <PortfolioBalanceCard portfolio={portfolio} isLoading={isLoading} />
-
-                    {/* Transactions Table */}
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>{t('history_title')}</CardTitle>
-                            <CardDescription>{t('history_subtitle')}</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            {isLoading ? (
-                                <div className="text-center py-8 text-muted-foreground">
-                                    {tCommon("loading")}
-                                </div>
-                            ) : transactions.length === 0 ? (
-                                <div className="text-center py-8 text-muted-foreground">
-                                    {t('no_transactions')}
-                                </div>
-                            ) : (
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead>
-                                                <Button
-                                                    variant="ghost"
-                                                    onClick={() => handleSort("date")}
-                                                >
-                                                    {tTrades("date")}
-                                                    {sortConfig.key === "date" &&
-                                                        (sortConfig.direction === "asc" ? (
-                                                            <ArrowUp className="ml-2 h-4 w-4" />
-                                                        ) : (
-                                                            <ArrowDown className="ml-2 h-4 w-4" />
-                                                        ))}
-                                                    {sortConfig.key !== "date" && (
-                                                        <ArrowUpDown className="ml-2 h-4 w-4" />
-                                                    )}
-                                                </Button>
-                                            </TableHead>
-                                            <TableHead>
-                                                <Button
-                                                    variant="ghost"
-                                                    onClick={() => handleSort("type")}
-                                                >
-                                                    {tTrades("type")}
-                                                    {sortConfig.key === "type" &&
-                                                        (sortConfig.direction === "asc" ? (
-                                                            <ArrowUp className="ml-2 h-4 w-4" />
-                                                        ) : (
-                                                            <ArrowDown className="ml-2 h-4 w-4" />
-                                                        ))}
-                                                    {sortConfig.key !== "type" && (
-                                                        <ArrowUpDown className="ml-2 h-4 w-4" />
-                                                    )}
-                                                </Button>
-                                            </TableHead>
-                                            <TableHead className="text-right">
-                                                <Button
-                                                    variant="ghost"
-                                                    onClick={() => handleSort("amount")}
-                                                >
-                                                    {t('amount')}
-                                                    {sortConfig.key === "amount" &&
-                                                        (sortConfig.direction === "asc" ? (
-                                                            <ArrowUp className="ml-2 h-4 w-4" />
-                                                        ) : (
-                                                            <ArrowDown className="ml-2 h-4 w-4" />
-                                                        ))}
-                                                    {sortConfig.key !== "amount" && (
-                                                        <ArrowUpDown className="ml-2 h-4 w-4" />
-                                                    )}
-                                                </Button>
-                                            </TableHead>
-                                            <TableHead>{tTrades("currency")}</TableHead>
-                                            <TableHead></TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {sortedTransactions.map((tx) => (
-                                            <TableRow
-                                                key={tx.id}
-                                                className="cursor-pointer hover:bg-muted/50"
-                                                onClick={() => handleViewNotes(tx)}
-                                            >
-                                                <TableCell>
-                                                    {new Date(tx.date).toLocaleDateString()}
-                                                </TableCell>
-                                                <TableCell>
-                                                    <span
-                                                        className={
-                                                            tx.type === "deposit"
-                                                                ? "text-green-600 dark:text-green-400"
-                                                                : "text-red-600 dark:text-red-400"
-                                                        }
-                                                    >
-                                                        {t(tx.type)}
-                                                    </span>
-                                                </TableCell>
-                                                <TableCell className="text-right">
-                                                    {tx.type === "deposit" ? "+" : "-"}
-                                                    {formatMoney(tx.amount)}
-                                                </TableCell>
-                                                <TableCell>{tx.currency}</TableCell>
-                                                <TableCell>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        className="text-muted-foreground hover:text-destructive"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            handleDelete(tx.id);
-                                                        }}
-                                                    >
-                                                        {t('delete')}
-                                                    </Button>
-                                                </TableCell>
-                                            </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
-                            )}
-                        </CardContent>
-                    </Card>
+        <div className="max-w-5xl mx-auto space-y-6">
+            <div className="flex items-center justify-between">
+                <div>
+                    <h1 className="text-3xl font-bold">{t('title')}</h1>
+                    <p className="text-muted-foreground">
+                        {t('subtitle')}
+                    </p>
                 </div>
-            </main>
+                <div className="flex items-center gap-2">
+                    {/* Export Dropdown */}
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="outline">
+                                <Download className="h-4 w-4 mr-2" />
+                                {t('export')}
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent>
+                            <DropdownMenuItem onClick={() => handleExport("csv")}>
+                                {tCommon('csv')}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleExport("xlsx")}>
+                                {tCommon('xlsx')}
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+
+                    {/* Import Button */}
+                    <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
+                        <Upload className="h-4 w-4 mr-2" />
+                        {t('import')}
+                    </Button>
+                    <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept=".csv,.xlsx"
+                        className="hidden"
+                        onChange={handleImport}
+                    />
+
+                    <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                        <DialogTrigger asChild>
+                            <Button>{t('add_transaction')}</Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                            <DialogHeader>
+                                <DialogTitle>{t('add_cash_transaction')}</DialogTitle>
+                                <DialogDescription>
+                                    {t('dialog_description')}
+                                </DialogDescription>
+                            </DialogHeader>
+                            <form onSubmit={handleSubmit} className="space-y-4">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="type">{tTrades("type")}</Label>
+                                        <select
+                                            id="type"
+                                            className="w-full h-10 px-3 border rounded-md bg-background"
+                                            value={formData.type}
+                                            onChange={(e) =>
+                                                setFormData({
+                                                    ...formData,
+                                                    type: e.target.value as "deposit" | "withdraw",
+                                                })
+                                            }
+                                        >
+                                            <option value="deposit">{t('deposit')}</option>
+                                            <option value="withdraw">{t('withdraw')}</option>
+                                        </select>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="date">{tTrades("date")}</Label>
+                                        <Input
+                                            id="date"
+                                            type="date"
+                                            value={formData.date}
+                                            onChange={(e) =>
+                                                setFormData({ ...formData, date: e.target.value })
+                                            }
+                                            required
+                                        />
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="amount">{t('amount')}</Label>
+                                        <Input
+                                            id="amount"
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            value={formData.amount || ""}
+                                            onChange={(e) =>
+                                                setFormData({
+                                                    ...formData,
+                                                    amount: parseFloat(e.target.value) || 0,
+                                                })
+                                            }
+                                            required
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="currency">{tTrades("currency")}</Label>
+                                        <select
+                                            id="currency"
+                                            className="w-full h-10 px-3 border rounded-md bg-background"
+                                            value={formData.currency}
+                                            onChange={(e) =>
+                                                setFormData({ ...formData, currency: e.target.value })
+                                            }
+                                        >
+                                            <option value="USD">USD</option>
+                                            <option value="TWD">TWD</option>
+                                            <option value="EUR">EUR</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="notes">{t('notes_placeholder')}</Label>
+                                    <Input
+                                        id="notes"
+                                        value={formData.notes || ""}
+                                        onChange={(e) =>
+                                            setFormData({ ...formData, notes: e.target.value })
+                                        }
+                                        placeholder={t('notes_placeholder')}
+                                    />
+                                </div>
+                                <div className="flex justify-end gap-2">
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={() => setIsDialogOpen(false)}
+                                    >
+                                        {t('cancel')}
+                                    </Button>
+                                    <Button type="submit">{t('add_transaction')}</Button>
+                                </div>
+                            </form>
+                        </DialogContent>
+                    </Dialog>
+                </div>
+            </div>
+
+            {/* Portfolio Balance Card */}
+            <PortfolioBalanceCard portfolio={portfolio} isLoading={isLoading} />
+
+            {/* Transactions Table */}
+            <Card>
+                <CardHeader>
+                    <CardTitle>{t('history_title')}</CardTitle>
+                    <CardDescription>{t('history_subtitle')}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    {isLoading ? (
+                        <div className="text-center py-8 text-muted-foreground">
+                            {tCommon("loading")}
+                        </div>
+                    ) : transactions.length === 0 ? (
+                        <div className="text-center py-8 text-muted-foreground">
+                            {t('no_transactions')}
+                        </div>
+                    ) : (
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>
+                                        <Button
+                                            variant="ghost"
+                                            onClick={() => handleSort("date")}
+                                        >
+                                            {tTrades("date")}
+                                            {sortConfig.key === "date" &&
+                                                (sortConfig.direction === "asc" ? (
+                                                    <ArrowUp className="ml-2 h-4 w-4" />
+                                                ) : (
+                                                    <ArrowDown className="ml-2 h-4 w-4" />
+                                                ))}
+                                            {sortConfig.key !== "date" && (
+                                                <ArrowUpDown className="ml-2 h-4 w-4" />
+                                            )}
+                                        </Button>
+                                    </TableHead>
+                                    <TableHead>
+                                        <Button
+                                            variant="ghost"
+                                            onClick={() => handleSort("type")}
+                                        >
+                                            {tTrades("type")}
+                                            {sortConfig.key === "type" &&
+                                                (sortConfig.direction === "asc" ? (
+                                                    <ArrowUp className="ml-2 h-4 w-4" />
+                                                ) : (
+                                                    <ArrowDown className="ml-2 h-4 w-4" />
+                                                ))}
+                                            {sortConfig.key !== "type" && (
+                                                <ArrowUpDown className="ml-2 h-4 w-4" />
+                                            )}
+                                        </Button>
+                                    </TableHead>
+                                    <TableHead className="text-right">
+                                        <Button
+                                            variant="ghost"
+                                            onClick={() => handleSort("amount")}
+                                        >
+                                            {t('amount')}
+                                            {sortConfig.key === "amount" &&
+                                                (sortConfig.direction === "asc" ? (
+                                                    <ArrowUp className="ml-2 h-4 w-4" />
+                                                ) : (
+                                                    <ArrowDown className="ml-2 h-4 w-4" />
+                                                ))}
+                                            {sortConfig.key !== "amount" && (
+                                                <ArrowUpDown className="ml-2 h-4 w-4" />
+                                            )}
+                                        </Button>
+                                    </TableHead>
+                                    <TableHead>{tTrades("currency")}</TableHead>
+                                    <TableHead></TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {sortedTransactions.map((tx) => (
+                                    <TableRow
+                                        key={tx.id}
+                                        className="cursor-pointer hover:bg-muted/50"
+                                        onClick={() => handleViewNotes(tx)}
+                                    >
+                                        <TableCell>
+                                            {new Date(tx.date).toLocaleDateString()}
+                                        </TableCell>
+                                        <TableCell>
+                                            <span
+                                                className={
+                                                    tx.type === "deposit"
+                                                        ? "text-green-600 dark:text-green-400"
+                                                        : "text-red-600 dark:text-red-400"
+                                                }
+                                            >
+                                                {t(tx.type)}
+                                            </span>
+                                        </TableCell>
+                                        <TableCell className="text-right">
+                                            {tx.type === "deposit" ? "+" : "-"}
+                                            {formatMoney(tx.amount)}
+                                        </TableCell>
+                                        <TableCell>{tx.currency}</TableCell>
+                                        <TableCell>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="text-muted-foreground hover:text-destructive"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleDelete(tx.id);
+                                                }}
+                                            >
+                                                {t('delete')}
+                                            </Button>
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    )}
+                </CardContent>
+            </Card>
 
             {/* Notes View/Edit Dialog */}
             <Dialog open={isNotesDialogOpen} onOpenChange={setIsNotesDialogOpen}>
@@ -528,7 +522,7 @@ export default function AssetsPage() {
                     </div>
                 </DialogContent>
             </Dialog>
-
         </div>
     );
 }
+

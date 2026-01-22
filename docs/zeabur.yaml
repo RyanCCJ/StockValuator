@@ -78,7 +78,7 @@ spec:
               - redis
           spec:
             source:
-                image: ryanccj/stockvaluator-backend:latest
+                image: your-docker-hub-username/stockvaluator-backend:latest  # Replace with your image
             ports:
                 - id: api
                   port: 8000
@@ -97,6 +97,40 @@ spec:
                 GOOGLE_CLIENT_SECRET:
                     default: ${GOOGLE_CLIENT_SECRET}
 
+        - name: celery-worker
+          template: PREBUILT
+          dependencies:
+              - postgres
+              - redis
+          spec:
+            source:
+                image: your-docker-hub-username/stockvaluator-backend:latest  # Same image as backend
+            command: ["uv", "run", "celery", "-A", "src.worker:celery_app", "worker", "--loglevel=info"]
+            env:
+                DATABASE_URL:
+                    default: postgresql+asyncpg://postgres:${POSTGRES_PASSWORD}@postgres:5432/stockvaluator
+                REDIS_URL:
+                    default: redis://redis:6379
+                SECRET_KEY:
+                    default: ${PASSWORD}
+
+        - name: celery-beat
+          template: PREBUILT
+          dependencies:
+              - postgres
+              - redis
+          spec:
+            source:
+                image: your-docker-hub-username/stockvaluator-backend:latest  # Same image as backend
+            command: ["uv", "run", "celery", "-A", "src.worker:celery_app", "beat", "--loglevel=info"]
+            env:
+                DATABASE_URL:
+                    default: postgresql+asyncpg://postgres:${POSTGRES_PASSWORD}@postgres:5432/stockvaluator
+                REDIS_URL:
+                    default: redis://redis:6379
+                SECRET_KEY:
+                    default: ${PASSWORD}
+
         - name: frontend
           template: PREBUILT
           domainKey: FRONTEND_DOMAIN
@@ -104,7 +138,7 @@ spec:
               - backend
           spec:
             source:
-                image: ryanccj/stockvaluator-frontend:latest
+                image: your-docker-hub-username/stockvaluator-frontend:latest  # Replace with your image
             ports:
                 - id: web
                   port: 3000
@@ -122,3 +156,6 @@ spec:
                     default: ${GOOGLE_CLIENT_SECRET}
                 AUTH_TRUST_HOST:
                     default: "true"
+                NEXT_PUBLIC_BRANDFETCH_CLIENT_ID:
+                    default: ""
+
