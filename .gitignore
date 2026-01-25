@@ -39,9 +39,12 @@ pnpm-debug.log*
 build/
 dist/
 
-# LLM artifacts
+# SDD artifacts
 .agent/
 .gemini/
+.opencode/
 .specify/
 specs/
+openspec/
+AGENTS.md
 Gemini.md

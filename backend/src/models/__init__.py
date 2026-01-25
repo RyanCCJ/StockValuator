@@ -6,6 +6,7 @@ from src.models.trade import Trade, TradeType
 from src.models.cash import CashTransaction, CashTransactionType
 from src.models.watchlist import Category, WatchlistItem
 from src.models.alerts import PriceAlert, AlertStatus, StockFundamentals
+from src.models.financial_data import FinancialData, AIScoreCache
 
 __all__ = [
     "Base",
@@ -20,5 +21,6 @@ __all__ = [
     "PriceAlert",
     "AlertStatus",
     "StockFundamentals",
+    "FinancialData",
+    "AIScoreCache",
 ]
-

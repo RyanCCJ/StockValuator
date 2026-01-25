@@ -520,5 +520,132 @@ export type {
     CashTransaction, CashTransactionData, CashTransactionListResponse,
     TechnicalDataResponse, OHLCVData, TechnicalIndicators,
     FundamentalDataResponse, InstitutionalHolder, TopHolding, SectorWeighting,
-    PriceAlert, AlertListResponse, CreateAlertData
+    PriceAlert, AlertListResponse, CreateAlertData,
+    ValueAnalysisResponse, ScoreBreakdown, ConfidenceScore, DividendScore,
+    ValueScoreType, FairValueEstimate, AIScoreResponse
 };
+
+interface ScoreBreakdown {
+    name: string;
+    score: number;
+    max_score: number;
+    reason: string;
+}
+
+interface ConfidenceScore {
+    total: number;
+    max_possible: number;
+    breakdown: ScoreBreakdown[];
+    moat_score: number | null;
+    risk_score: number | null;
+}
+
+interface DividendScore {
+    total: number;
+    max_possible: number;
+    breakdown: ScoreBreakdown[];
+}
+
+interface ValueScoreType {
+    total: number;
+    max_possible: number;
+    breakdown: ScoreBreakdown[];
+}
+
+interface FairValueEstimate {
+    model: "growth" | "dividend" | "asset";
+    fair_value: number | null;
+    current_price: number | null;
+    is_undervalued: boolean;
+    explanation: string;
+}
+
+interface ValueAnalysisResponse {
+    symbol: string;
+    data_status: "complete" | "partial" | "insufficient";
+    data_source: string | null;
+    confidence: ConfidenceScore;
+    dividend: DividendScore;
+    value: ValueScoreType;
+    fair_value?: FairValueEstimate;
+}
+
+interface AIScoreResponse {
+    symbol: string;
+    score_type: string;
+    score: number | null;
+    breakdown: Record<string, unknown> | null;
+    reasoning: string | null;
+    prompt: string | null;
+    error: string | null;
+    manual_entry_required: boolean;
+}
+
+// Custom error class to preserve HTTP status
+export class ApiError extends Error {
+    status: number;
+    constructor(message: string, status: number) {
+        super(message);
+        this.status = status;
+        this.name = "ApiError";
+    }
+}
+
+export async function getValueAnalysis(symbol: string): Promise<ValueAnalysisResponse> {
+    const response = await fetch(`${API_BASE}/analysis/${symbol}/value`);
+    if (!response.ok) {
+        throw new ApiError(`Failed to fetch value analysis for ${symbol}`, response.status);
+    }
+    return response.json();
+}
+
+export async function getFairValue(
+    symbol: string,
+    model: "growth" | "dividend" | "asset" = "growth",
+    expectedReturn: number = 0.04,
+    pbThreshold: number = 0.8
+): Promise<FairValueEstimate> {
+    const response = await fetch(`${API_BASE}/analysis/${symbol}/fair-value`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            model,
+            expected_return: expectedReturn,
+            pb_threshold: pbThreshold,
+        }),
+    });
+    if (!response.ok) {
+        throw new Error(`Failed to fetch fair value for ${symbol}`);
+    }
+    return response.json();
+}
+
+export async function getAIScore(
+    symbol: string,
+    scoreType: "moat" | "risk",
+    forceRefresh: boolean = false
+): Promise<AIScoreResponse> {
+    const response = await fetch(`${API_BASE}/analysis/${symbol}/ai-score`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            score_type: scoreType,
+            force_refresh: forceRefresh,
+        }),
+    });
+    if (!response.ok) {
+        throw new Error(`Failed to fetch AI score for ${symbol}`);
+    }
+    return response.json();
+}
+
+export async function getAIPrompt(
+    symbol: string,
+    scoreType: "moat" | "risk"
+): Promise<{ symbol: string; score_type: string; prompt: string }> {
+    const response = await fetch(`${API_BASE}/analysis/${symbol}/ai-prompt/${scoreType}`);
+    if (!response.ok) {
+        throw new Error(`Failed to fetch AI prompt for ${symbol}`);
+    }
+    return response.json();
+}

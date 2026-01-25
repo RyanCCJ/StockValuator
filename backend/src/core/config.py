@@ -42,7 +42,7 @@ class Settings(BaseSettings):
     gmail_redirect_uri: str = "http://localhost:8000/email/oauth/callback"
     gmail_refresh_token: str = ""  # Stored after initial authorization
     gmail_user_email: str = ""  # Email to send from
-    
+
     # SMTP fallback (used if Gmail API not configured)
     mail_server: str = ""
     mail_port: int = 587
@@ -52,6 +52,9 @@ class Settings(BaseSettings):
     mail_from_name: str = "StockValuator"
     mail_starttls: bool = True
     mail_ssl_tls: bool = False
+
+    # AI Scoring (OpenAI)
+    openai_api_key: str = ""
 
     @property
     def celery_broker(self) -> str:

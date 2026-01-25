@@ -16,6 +16,7 @@ import {
     STORAGE_KEY_PERIOD
 } from "@/components/dashboard/technical-chart";
 import { ValueAnalysis } from "@/components/dashboard/value-analysis";
+import { ValueScores } from "@/components/dashboard/value-scores";
 import { SetAlertDialog } from "@/components/dashboard/set-alert-dialog";
 import {
     getTechnicalData,
@@ -233,7 +234,10 @@ export default function StockDetailPage({ params }: StockDetailPageProps) {
                         </CardContent>
                     </Card>
                 ) : fundamentalData ? (
-                    <ValueAnalysis data={fundamentalData} />
+                    <div className="space-y-6">
+                        <ValueAnalysis data={fundamentalData} />
+                        {!fundamentalData.is_etf && <ValueScores symbol={upperSymbol} />}
+                    </div>
                 ) : null}
             </TabsContent>
 
