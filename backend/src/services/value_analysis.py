@@ -88,7 +88,7 @@ def calculate_confidence_score(metrics: FinancialMetrics) -> ConfidenceScore:
     breakdown.append(nm_score)
     total += nm_score.score
 
-    return ConfidenceScore(total=total, max_possible=11.0, breakdown=breakdown)
+    return ConfidenceScore(total=total, max_possible=6.0, breakdown=breakdown)
 
 
 def calculate_dividend_score(metrics: FinancialMetrics, beta: float | None = None) -> DividendScore:
@@ -333,24 +333,24 @@ def _score_net_margin(history: list[dict[str, Any]] | None) -> ScoreBreakdown:
 
 def _score_dividend_years(years: int | None) -> ScoreBreakdown:
     if years is None:
-        return ScoreBreakdown(name="Dividend Streak", score=0, max_score=4, reason="Unknown")
+        return ScoreBreakdown(name="Dividend Growth", score=0, max_score=4, reason="Unknown")
     if years >= 50:
         return ScoreBreakdown(
-            name="Dividend Streak", score=4, max_score=4, reason=f"{years}y (King)"
+            name="Dividend Growth", score=4, max_score=4, reason=f"{years}y (King)"
         )
     if years >= 25:
         return ScoreBreakdown(
-            name="Dividend Streak", score=3, max_score=4, reason=f"{years}y (Aristocrat)"
+            name="Dividend Growth", score=3, max_score=4, reason=f"{years}y (Aristocrat)"
         )
     if years >= 10:
         return ScoreBreakdown(
-            name="Dividend Streak", score=2, max_score=4, reason=f"{years}y (Achiever)"
+            name="Dividend Growth", score=2, max_score=4, reason=f"{years}y (Achiever)"
         )
     if years >= 5:
         return ScoreBreakdown(
-            name="Dividend Streak", score=1, max_score=4, reason=f"{years}y (Contender)"
+            name="Dividend Growth", score=1, max_score=4, reason=f"{years}y (Contender)"
         )
-    return ScoreBreakdown(name="Dividend Streak", score=0, max_score=4, reason=f"{years}y (short)")
+    return ScoreBreakdown(name="Dividend Growth", score=0, max_score=4, reason=f"{years}y (short)")
 
 
 def _calculate_cagr(history: list[dict[str, Any]] | None, years: int) -> float | None:

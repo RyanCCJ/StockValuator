@@ -11,7 +11,6 @@ import { Progress } from "@/components/ui/progress";
 import {
     getValueAnalysis,
     getFairValue,
-    getAIScore,
     getAIPrompt,
     ScoreBreakdown,
     FairValueEstimate,
@@ -23,18 +22,52 @@ interface ValueScoresProps {
     symbol: string;
 }
 
+const SCORE_NAME_MAPPING: Record<string, string> = {
+    // Confidence Score
+    "EPS": "eps",
+    "Dividends": "dividends",
+    "FCF": "fcf",
+    "ROE": "roe",
+    "Interest Coverage": "interest_coverage",
+    "Net Margin": "net_margin",
+
+    // Dividend Score
+    "Dividend Growth": "dividend_growth",
+    "5Y Dividend Growth": "dividend_growth_5y",
+    "Growth Acceleration": "growth_acceleration",
+    "FCF Payout": "fcf_payout",
+    "EPS Payout": "eps_payout",
+    "EPS Stability": "eps_stability",
+    "Buyback": "buyback",
+    "Avg ROE": "avg_roe",
+    "Beta": "beta",
+
+    // Value Score
+    "Yield vs History": "yield_vs_history",
+    "PE vs History": "pe_vs_history",
+    "High Yield": "high_yield",
+    "Yield vs S&P500": "yield_vs_sp500",
+    "Chowder Rule": "chowder_rule",
+    "FCF Yield": "fcf_yield",
+    "Low PE": "low_pe",
+    "PE+ROE Combo": "pe_roe_combo",
+    "PE vs S&P500": "low_pe", // Fallback if backend sends different variation
+};
+
 function ScoreCard({
     title,
     score,
     maxScore,
     breakdown,
     colorClass,
+    children,
 }: {
     title: string;
     score: number;
     maxScore: number;
     breakdown: ScoreBreakdown[];
     colorClass: string;
+    children?: React.ReactNode;
 }) {
     const [isExpanded, setIsExpanded] = useState(false);
     const t = useTranslations("ValueAnalysis");
@@ -60,7 +93,7 @@ function ScoreCard({
                 <Button
                     variant="ghost"
                     size="sm"
-                    className="w-full flex items-center justify-center gap-2"
+                    className="w-full flex items-center justify-center gap-2 mt-2"
                     onClick={() => setIsExpanded(!isExpanded)}
                 >
                     {isExpanded ? (
@@ -75,17 +108,28 @@ function ScoreCard({
                 </Button>
                 {isExpanded && (
                     <div className="mt-4 space-y-3">
-                        {breakdown.map((item, index) => (
-                            <div key={index} className="p-3 bg-muted/50 rounded-lg">
-                                <div className="flex items-center justify-between mb-1">
-                                    <span className="font-medium text-sm">{item.name}</span>
-                                    <span className="text-sm font-semibold">
-                                        {item.score}/{item.max_score}
-                                    </span>
+                        {breakdown.map((item, index) => {
+                            // Try to get translation key from mapping
+                            const mappingKey = SCORE_NAME_MAPPING[item.name];
+                            // If key exists, translate it using ScoreNames namespace
+                            // Otherwise fallback to original name
+                            const displayName = mappingKey
+                                ? t(`ScoreNames.${mappingKey}`)
+                                : item.name;
+
+                            return (
+                                <div key={index} className="p-3 bg-muted/50 rounded-lg">
+                                    <div className="flex items-center justify-between mb-1">
+                                        <span className="font-medium text-sm">{displayName}</span>
+                                        <span className="text-sm font-semibold">
+                                            {item.score}/{item.max_score}
+                                        </span>
+                                    </div>
+                                    <p className="text-xs text-muted-foreground">{item.reason}</p>
                                 </div>
-                                <p className="text-xs text-muted-foreground">{item.reason}</p>
-                            </div>
-                        ))}
+                            );
+                        })}
+                        {children}
                     </div>
                 )}
             </CardContent>
@@ -98,6 +142,167 @@ function getScoreColorClass(score: number, maxScore: number): string {
     if (percentage >= 70) return "bg-green-500";
     if (percentage >= 40) return "bg-yellow-500";
     return "bg-red-500";
+}
+
+function MoatRiskInputs({
+    symbol,
+    localMoatScore,
+    localRiskScore,
+    onMoatChange,
+    onRiskChange,
+}: {
+    symbol: string;
+    localMoatScore: number | "";
+    localRiskScore: number | "";
+    onMoatChange: (val: number | "") => void;
+    onRiskChange: (val: number | "") => void;
+}) {
+    const t = useTranslations("ValueAnalysis");
+    const [copiedPrompt, setCopiedPrompt] = useState<string | null>(null);
+
+    // Prefetch prompts to allow synchronous copy
+    const { data: moatData, isLoading: isLoadingMoat } = useQuery({
+        queryKey: ["aiPrompt", symbol, "moat"],
+        queryFn: () => getAIPrompt(symbol, "moat"),
+        staleTime: Infinity, // Prompts don't change often
+    });
+
+    const { data: riskData, isLoading: isLoadingRisk } = useQuery({
+        queryKey: ["aiPrompt", symbol, "risk"],
+        queryFn: () => getAIPrompt(symbol, "risk"),
+        staleTime: Infinity,
+    });
+
+    const copyToClipboard = async (text: string, scoreType: "moat" | "risk") => {
+        try {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                await navigator.clipboard.writeText(text);
+            } else {
+                throw new Error("Clipboard API unavailable");
+            }
+        } catch (err) {
+            console.warn("Clipboard API failed, trying fallback...", err);
+            // Fallback for non-secure contexts or failures
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            textArea.style.position = "fixed";
+            textArea.style.left = "-9999px";
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            try {
+                document.execCommand("copy");
+            } catch (fallbackErr) {
+                console.error("Fallback copy failed:", fallbackErr);
+                return;
+            } finally {
+                document.body.removeChild(textArea);
+            }
+        }
+
+        setCopiedPrompt(scoreType);
+        setTimeout(() => setCopiedPrompt(null), 2000);
+    };
+
+    return (
+        <div className="space-y-3 mt-3">
+            {/* Moat Score Row */}
+            <div className="p-3 bg-muted/50 rounded-lg">
+                <div className="flex items-center justify-between mb-2">
+                    <span className="font-medium text-sm flex items-center gap-2">
+                        {t("moat_score")}
+                    </span>
+                    <div className="flex items-center gap-1">
+                        <input
+                            type="number"
+                            min="0"
+                            max="5"
+                            className="w-12 p-1 h-7 rounded-sm border text-right text-sm bg-background focus:ring-1 focus:ring-primary"
+                            value={localMoatScore}
+                            onChange={(e) => {
+                                const val = e.target.value === "" ? "" : Number(e.target.value);
+                                if (val === "" || (val >= 0 && val <= 5)) {
+                                    onMoatChange(val);
+                                }
+                            }}
+                            placeholder="0"
+                        />
+                        <span className="text-sm font-semibold text-muted-foreground">/5</span>
+                    </div>
+                </div>
+                <div className="flex items-center justify-between">
+                    <p className="text-xs text-muted-foreground">
+                        {t("ai_scoring_hint")}
+                    </p>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 px-2 text-xs"
+                        onClick={() => moatData && copyToClipboard(moatData.prompt, "moat")}
+                        disabled={isLoadingMoat || !moatData}
+                        title={t("copy_prompt")}
+                    >
+                        {isLoadingMoat ? (
+                            <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                        ) : copiedPrompt === "moat" ? (
+                            <Check className="h-3 w-3 mr-1 text-green-500" />
+                        ) : (
+                            <Copy className="h-3 w-3 mr-1" />
+                        )}
+                        {copiedPrompt === "moat" ? t("copied") : t("copy_prompt")}
+                    </Button>
+                </div>
+            </div>
+
+            {/* Risk Score Row */}
+            <div className="p-3 bg-muted/50 rounded-lg">
+                <div className="flex items-center justify-between mb-2">
+                    <span className="font-medium text-sm flex items-center gap-2">
+                        {t("risk_score")}
+                    </span>
+                    <div className="flex items-center gap-1">
+                        <input
+                            type="number"
+                            min="-3"
+                            max="0"
+                            className="w-12 p-1 h-7 rounded-sm border text-right text-sm bg-background focus:ring-1 focus:ring-primary"
+                            value={localRiskScore}
+                            onChange={(e) => {
+                                const val = e.target.value === "" ? "" : Number(e.target.value);
+                                if (val === "" || (val >= -3 && val <= 0)) {
+                                    onRiskChange(val);
+                                }
+                            }}
+                            placeholder="0"
+                        />
+                        <span className="text-sm font-semibold text-muted-foreground">/0</span>
+                    </div>
+                </div>
+                <div className="flex items-center justify-between">
+                    <p className="text-xs text-muted-foreground">
+                        {t("ai_scoring_hint")}
+                    </p>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 px-2 text-xs"
+                        onClick={() => riskData && copyToClipboard(riskData.prompt, "risk")}
+                        disabled={isLoadingRisk || !riskData}
+                        title={t("copy_prompt")}
+                    >
+                        {isLoadingRisk ? (
+                            <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                        ) : copiedPrompt === "risk" ? (
+                            <Check className="h-3 w-3 mr-1 text-green-500" />
+                        ) : (
+                            <Copy className="h-3 w-3 mr-1" />
+                        )}
+                        {copiedPrompt === "risk" ? t("copied") : t("copy_prompt")}
+                    </Button>
+                </div>
+            </div>
+        </div>
+    );
 }
 
 function FairValueSection({
@@ -187,155 +392,6 @@ function FairValueSection({
     );
 }
 
-function AIScoreSection({
-    symbol,
-    existingMoatScore,
-    existingRiskScore,
-}: {
-    symbol: string;
-    existingMoatScore: number | null;
-    existingRiskScore: number | null;
-}) {
-    const t = useTranslations("ValueAnalysis");
-    const [copiedPrompt, setCopiedPrompt] = useState<string | null>(null);
-    const [moatResult, setMoatResult] = useState<AIScoreResponse | null>(null);
-    const [riskResult, setRiskResult] = useState<AIScoreResponse | null>(null);
-
-    const moatMutation = useMutation({
-        mutationFn: () => getAIScore(symbol, "moat"),
-        onSuccess: (data) => setMoatResult(data),
-    });
-
-    const riskMutation = useMutation({
-        mutationFn: () => getAIScore(symbol, "risk"),
-        onSuccess: (data) => setRiskResult(data),
-    });
-
-    const promptMutation = useMutation({
-        mutationFn: (scoreType: "moat" | "risk") => getAIPrompt(symbol, scoreType),
-    });
-
-    const handleCopyPrompt = async (scoreType: "moat" | "risk") => {
-        try {
-            const result = await promptMutation.mutateAsync(scoreType);
-            await navigator.clipboard.writeText(result.prompt);
-            setCopiedPrompt(scoreType);
-            setTimeout(() => setCopiedPrompt(null), 2000);
-        } catch {
-        }
-    };
-
-    const displayMoatScore = moatResult?.score ?? existingMoatScore;
-    const displayRiskScore = riskResult?.score ?? existingRiskScore;
-
-    return (
-        <Card>
-            <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                    <Sparkles className="h-5 w-5" />
-                    {t("ai_analysis")}
-                </CardTitle>
-                <CardDescription>{t("ai_analysis_desc")}</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-                <div className="p-4 bg-muted/50 rounded-lg space-y-3">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <div className="font-medium">{t("moat_score")}</div>
-                            <div className="text-sm text-muted-foreground">{t("moat_desc")}</div>
-                        </div>
-                        {displayMoatScore != null && (
-                            <span className="text-xl font-bold text-green-600 dark:text-green-400">
-                                +{displayMoatScore}
-                            </span>
-                        )}
-                    </div>
-                    <div className="flex gap-2">
-                        <Button
-                            size="sm"
-                            onClick={() => moatMutation.mutate()}
-                            disabled={moatMutation.isPending}
-                        >
-                            {moatMutation.isPending ? (
-                                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                            ) : null}
-                            {t("analyze_moat")}
-                        </Button>
-                        <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleCopyPrompt("moat")}
-                            disabled={promptMutation.isPending}
-                        >
-                            {copiedPrompt === "moat" ? (
-                                <Check className="h-4 w-4 mr-2" />
-                            ) : (
-                                <Copy className="h-4 w-4 mr-2" />
-                            )}
-                            {t("copy_prompt")}
-                        </Button>
-                    </div>
-                    {moatResult?.reasoning && (
-                        <p className="text-sm text-muted-foreground mt-2">{moatResult.reasoning}</p>
-                    )}
-                    {moatResult?.manual_entry_required && (
-                        <p className="text-sm text-yellow-600 dark:text-yellow-400">
-                            {t("manual_entry_required")}
-                        </p>
-                    )}
-                </div>
-
-                <div className="p-4 bg-muted/50 rounded-lg space-y-3">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <div className="font-medium">{t("risk_score")}</div>
-                            <div className="text-sm text-muted-foreground">{t("risk_desc")}</div>
-                        </div>
-                        {displayRiskScore != null && (
-                            <span className="text-xl font-bold text-red-600 dark:text-red-400">
-                                {displayRiskScore}
-                            </span>
-                        )}
-                    </div>
-                    <div className="flex gap-2">
-                        <Button
-                            size="sm"
-                            onClick={() => riskMutation.mutate()}
-                            disabled={riskMutation.isPending}
-                        >
-                            {riskMutation.isPending ? (
-                                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                            ) : null}
-                            {t("analyze_risk")}
-                        </Button>
-                        <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleCopyPrompt("risk")}
-                            disabled={promptMutation.isPending}
-                        >
-                            {copiedPrompt === "risk" ? (
-                                <Check className="h-4 w-4 mr-2" />
-                            ) : (
-                                <Copy className="h-4 w-4 mr-2" />
-                            )}
-                            {t("copy_prompt")}
-                        </Button>
-                    </div>
-                    {riskResult?.reasoning && (
-                        <p className="text-sm text-muted-foreground mt-2">{riskResult.reasoning}</p>
-                    )}
-                    {riskResult?.manual_entry_required && (
-                        <p className="text-sm text-yellow-600 dark:text-yellow-400">
-                            {t("manual_entry_required")}
-                        </p>
-                    )}
-                </div>
-            </CardContent>
-        </Card>
-    );
-}
-
 export function ValueScores({ symbol }: ValueScoresProps) {
     const t = useTranslations("ValueAnalysis");
     const [retryCount, setRetryCount] = useState(0);
@@ -373,6 +429,44 @@ export function ValueScores({ symbol }: ValueScoresProps) {
             }
         };
     }, [isLoading, isFetching, isQueryFetching]);
+
+    // State for local scores - defaults to 0
+    const [localMoatScore, setLocalMoatScore] = useState<number | "">(0);
+    const [localRiskScore, setLocalRiskScore] = useState<number | "">(0);
+
+    // Load from localStorage on mount
+    useEffect(() => {
+        const savedMoat = localStorage.getItem(`moat_${symbol}`);
+        const savedRisk = localStorage.getItem(`risk_${symbol}`);
+
+        // If saved, use saved. If not (and mount), keep default 0.
+        // Wait, standard practice for localStorage sync:
+        if (savedMoat !== null) {
+            setLocalMoatScore(Number(savedMoat));
+        } else {
+            // Ensure it's 0 if nothing saved
+            setLocalMoatScore(0);
+        }
+
+        if (savedRisk !== null) {
+            setLocalRiskScore(Number(savedRisk));
+        } else {
+            setLocalRiskScore(0);
+        }
+    }, [symbol]);
+
+    // Save to localStorage
+    const handleMoatChange = (val: number | "") => {
+        setLocalMoatScore(val);
+        if (val === "") localStorage.removeItem(`moat_${symbol}`);
+        else localStorage.setItem(`moat_${symbol}`, String(val));
+    };
+
+    const handleRiskChange = (val: number | "") => {
+        setLocalRiskScore(val);
+        if (val === "") localStorage.removeItem(`risk_${symbol}`);
+        else localStorage.setItem(`risk_${symbol}`, String(val));
+    };
 
     const handleRetry = async () => {
         setIsFetching(true);
@@ -471,6 +565,14 @@ export function ValueScores({ symbol }: ValueScoresProps) {
         );
     }
 
+    // Calculate total confidence score including manual inputs
+    const combinedConfidenceScore = analysisData.confidence.total +
+        (typeof localMoatScore === "number" ? localMoatScore : 0) +
+        (typeof localRiskScore === "number" ? localRiskScore : 0);
+
+    // Max possible is Backend Max (11) + Moat Max (5) = 16
+    const combinedMaxScore = analysisData.confidence.max_possible + 5;
+
     return (
         <div className="space-y-6">
             {analysisData.data_status === "insufficient" && (
@@ -492,14 +594,26 @@ export function ValueScores({ symbol }: ValueScoresProps) {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <ScoreCard
                     title={t("confidence_score")}
-                    score={analysisData.confidence.total}
-                    maxScore={analysisData.confidence.max_possible}
+                    score={combinedConfidenceScore}
+                    maxScore={combinedMaxScore}
                     breakdown={analysisData.confidence.breakdown}
-                    colorClass={getScoreColorClass(
-                        analysisData.confidence.total,
-                        analysisData.confidence.max_possible
-                    )}
-                />
+                    colorClass={
+                        combinedConfidenceScore >= 7
+                            ? "bg-green-500"
+                            : getScoreColorClass(
+                                combinedConfidenceScore,
+                                combinedMaxScore
+                            )
+                    }
+                >
+                    <MoatRiskInputs
+                        symbol={symbol}
+                        localMoatScore={localMoatScore}
+                        localRiskScore={localRiskScore}
+                        onMoatChange={handleMoatChange}
+                        onRiskChange={handleRiskChange}
+                    />
+                </ScoreCard>
                 <ScoreCard
                     title={t("dividend_score")}
                     score={analysisData.dividend.total}
@@ -523,12 +637,6 @@ export function ValueScores({ symbol }: ValueScoresProps) {
             </div>
 
             <FairValueSection symbol={symbol} initialFairValue={analysisData.fair_value} />
-
-            <AIScoreSection
-                symbol={symbol}
-                existingMoatScore={analysisData.confidence.moat_score}
-                existingRiskScore={analysisData.confidence.risk_score}
-            />
         </div>
     );
 }

@@ -620,24 +620,7 @@ export async function getFairValue(
     return response.json();
 }
 
-export async function getAIScore(
-    symbol: string,
-    scoreType: "moat" | "risk",
-    forceRefresh: boolean = false
-): Promise<AIScoreResponse> {
-    const response = await fetch(`${API_BASE}/analysis/${symbol}/ai-score`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-            score_type: scoreType,
-            force_refresh: forceRefresh,
-        }),
-    });
-    if (!response.ok) {
-        throw new Error(`Failed to fetch AI score for ${symbol}`);
-    }
-    return response.json();
-}
+
 
 export async function getAIPrompt(
     symbol: string,

@@ -4,8 +4,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.deps import get_db
 from src.schemas.value_analysis import (
-    AIScoreRequest,
-    AIScoreResponse,
     DataStatusEnum,
     FairValueRequest,
     FairValueResponse,
@@ -25,8 +23,6 @@ from src.services.value_analysis import (
     ValuationModel,
 )
 from src.services.ai_scoring import (
-    get_ai_moat_score,
-    get_ai_risk_score,
     generate_moat_prompt,
     generate_risk_prompt,
 )
@@ -201,52 +197,7 @@ async def get_fair_value(
     )
 
 
-@router.post("/{symbol}/ai-score", response_model=AIScoreResponse)
-async def get_ai_score(
-    symbol: str,
-    request: AIScoreRequest,
-    db: AsyncSession = Depends(get_db),
-):
-    fundamental = await get_fundamental_data(symbol, db)
-    company_name = fundamental.get("long_name", symbol) if fundamental else symbol
-    sector = fundamental.get("sector") if fundamental else None
-    industry = fundamental.get("industry") if fundamental else None
 
-    if request.score_type == "moat":
-        result = await get_ai_moat_score(
-            symbol=symbol,
-            company_name=company_name,
-            sector=sector,
-            industry=industry,
-            db=db,
-            force_refresh=request.force_refresh,
-        )
-    else:
-        result = await get_ai_risk_score(
-            symbol=symbol,
-            company_name=company_name,
-            sector=sector,
-            industry=industry,
-            db=db,
-            force_refresh=request.force_refresh,
-        )
-
-    if "error" in result:
-        return AIScoreResponse(
-            symbol=symbol.upper(),
-            score_type=request.score_type,
-            error=result.get("error"),
-            prompt=result.get("prompt"),
-            manual_entry_required=result.get("manual_entry_required", True),
-        )
-
-    return AIScoreResponse(
-        symbol=symbol.upper(),
-        score_type=request.score_type,
-        score=result.get("score") or result.get("total"),
-        breakdown=result.get("breakdown"),
-        reasoning=result.get("reasoning"),
-    )
 
 
 @router.get("/{symbol}/ai-prompt/{score_type}")
