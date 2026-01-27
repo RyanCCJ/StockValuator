@@ -51,6 +51,11 @@ class FairValueResponse(BaseModel):
     explanation: str
 
 
+class YearValueResponse(BaseModel):
+    year: int
+    value: float
+
+
 class ValueAnalysisResponse(BaseModel):
     symbol: str
     data_status: DataStatusEnum = DataStatusEnum.COMPLETE
@@ -59,6 +64,8 @@ class ValueAnalysisResponse(BaseModel):
     dividend: DividendScoreResponse
     value: ValueScoreResponse
     fair_value: FairValueResponse | None = None
+    pe_history: list[YearValueResponse] | None = None
+    dividend_yield_history: list[YearValueResponse] | None = None
 
 
 class AIScoreRequest(BaseModel):

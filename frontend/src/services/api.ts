@@ -522,7 +522,7 @@ export type {
     FundamentalDataResponse, InstitutionalHolder, TopHolding, SectorWeighting,
     PriceAlert, AlertListResponse, CreateAlertData,
     ValueAnalysisResponse, ScoreBreakdown, ConfidenceScore, DividendScore,
-    ValueScoreType, FairValueEstimate, AIScoreResponse
+    ValueScoreType, FairValueEstimate, AIScoreResponse, YearValue
 };
 
 interface ScoreBreakdown {
@@ -560,6 +560,11 @@ interface FairValueEstimate {
     explanation: string;
 }
 
+interface YearValue {
+    year: number;
+    value: number;
+}
+
 interface ValueAnalysisResponse {
     symbol: string;
     data_status: "complete" | "partial" | "insufficient";
@@ -568,6 +573,8 @@ interface ValueAnalysisResponse {
     dividend: DividendScore;
     value: ValueScoreType;
     fair_value?: FairValueEstimate;
+    pe_history?: YearValue[] | null;
+    dividend_yield_history?: YearValue[] | null;
 }
 
 interface AIScoreResponse {

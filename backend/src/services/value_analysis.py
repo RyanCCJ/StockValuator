@@ -147,13 +147,13 @@ def calculate_value_score(
     breakdown: list[ScoreBreakdown] = []
     total = 0.0
 
-    yield_score = _score_yield_relative_to_history(metrics.dividend_history, current_price)
-    breakdown.append(yield_score)
-    total += yield_score.score
-
-    pe_score = _score_pe_relative_to_history(metrics.pe_ratio, metrics.eps_history)
+    pe_score = _score_pe_relative_to_history(metrics.pe_history)
     breakdown.append(pe_score)
     total += pe_score.score
+
+    yield_score = _score_yield_relative_to_history(metrics.dividend_yield_history)
+    breakdown.append(yield_score)
+    total += yield_score.score
 
     div_yield = _get_current_yield(metrics.dividend_history, current_price)
 
@@ -475,21 +475,83 @@ def _get_current_yield(
     return abs(div) / price
 
 
+def _calculate_stats(history: list[dict[str, Any]] | None) -> tuple[float, float, float] | None:
+    """Calculate mean, std, and latest value from history."""
+    if not history or len(history) < 2:
+        return None
+    values = [item["value"] for item in history if item.get("value") is not None and item["value"] > 0]
+    if len(values) < 2:
+        return None
+    mean = sum(values) / len(values)
+    variance = sum((v - mean) ** 2 for v in values) / len(values)
+    std = variance ** 0.5
+    # Get latest value (assuming sorted by year)
+    sorted_history = sorted(history, key=lambda x: x.get("year", 0))
+    latest = sorted_history[-1].get("value")
+    if latest is None or latest <= 0:
+        return None
+    return mean, std, latest
+
+
 def _score_yield_relative_to_history(
-    dividend_history: list[dict[str, Any]] | None,
-    current_price: float | None,
+    dividend_yield_history: list[dict[str, Any]] | None,
 ) -> ScoreBreakdown:
+    """Score if current dividend yield is at or above upper band (mean + std).
+    Higher yield relative to history is better.
+    """
+    stats = _calculate_stats(dividend_yield_history)
+    if stats is None:
+        return ScoreBreakdown(
+            name="Yield vs History", score=0, max_score=1, reason="Insufficient yield history"
+        )
+    
+    mean, std, latest = stats
+    upper_band = mean + std
+    
+    # Score if yield is at or above upper band (historically high yield)
+    if latest >= upper_band:
+        return ScoreBreakdown(
+            name="Yield vs History",
+            score=1,
+            max_score=1,
+            reason=f"{latest:.2%} ≥ {upper_band:.2%} (high)",
+        )
     return ScoreBreakdown(
-        name="Yield vs History", score=0, max_score=1, reason="TODO: requires price history"
+        name="Yield vs History",
+        score=0,
+        max_score=1,
+        reason=f"{latest:.2%} < {upper_band:.2%}",
     )
 
 
 def _score_pe_relative_to_history(
-    pe: float | None,
-    eps_history: list[dict[str, Any]] | None,
+    pe_history: list[dict[str, Any]] | None,
 ) -> ScoreBreakdown:
+    """Score if current PE is at or below lower band (mean - std).
+    Lower PE relative to history is better.
+    """
+    stats = _calculate_stats(pe_history)
+    if stats is None:
+        return ScoreBreakdown(
+            name="PE vs History", score=0, max_score=1, reason="Insufficient PE history"
+        )
+    
+    mean, std, latest = stats
+    lower_band = max(0, mean - std)
+    
+    # Score if PE is at or below lower band (historically low PE)
+    if latest <= lower_band:
+        return ScoreBreakdown(
+            name="PE vs History",
+            score=1,
+            max_score=1,
+            reason=f"{latest:.1f} ≤ {lower_band:.1f} (low)",
+        )
     return ScoreBreakdown(
-        name="PE vs History", score=0, max_score=1, reason="TODO: requires PE history"
+        name="PE vs History",
+        score=0,
+        max_score=1,
+        reason=f"{latest:.1f} > {lower_band:.1f}",
     )
 
 

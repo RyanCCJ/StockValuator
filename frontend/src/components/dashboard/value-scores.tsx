@@ -8,6 +8,7 @@ import { Loader2, ChevronDown, ChevronUp, Copy, Check, AlertTriangle, ExternalLi
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { ValuationCharts } from "@/components/dashboard/valuation-charts";
 import {
     getValueAnalysis,
     getFairValue,
@@ -704,6 +705,12 @@ export function ValueScores({ symbol }: ValueScoresProps) {
                     </CardContent>
                 </Card>
             )}
+
+            {/* Valuation Trend Charts */}
+            <ValuationCharts
+                peHistory={analysisData.pe_history}
+                dividendYieldHistory={analysisData.dividend_yield_history}
+            />
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <ScoreCard

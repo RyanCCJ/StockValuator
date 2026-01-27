@@ -193,9 +193,9 @@
         "ai_analysis": "AI 分析",
         "ai_analysis_desc": "使用 AI 評估質化因素",
         "dividend_growth_years": "股息成長年數",
-    "check_seeking_alpha": "查看來源 (Seeking Alpha)",
-    "years_suffix": "年",
-    "moat_score": "護城河分數",
+        "check_seeking_alpha": "查看來源 (Seeking Alpha)",
+        "years_suffix": "年",
+        "moat_score": "護城河分數",
         "moat_desc": "競爭優勢與市場地位",
         "risk_score": "風險分數",
         "risk_desc": "商業與財務風險因素",
@@ -230,14 +230,25 @@
             "buyback": "股票回購",
             "avg_roe": "平均 ROE",
             "beta": "Beta 波動率",
-            "yield_vs_history": "殖利率 vs 歷史",
-            "pe_vs_history": "本益比 vs 歷史",
+            "pe_vs_history": "本益比歷史",
+            "yield_vs_history": "殖利率歷史",
             "high_yield": "高殖利率",
             "yield_vs_sp500": "殖利率 vs 大盤",
             "chowder_rule": "巧達法則",
             "fcf_yield": "現金流殖利率",
             "low_pe": "低本益比",
             "pe_roe_combo": "低本益比+高ROE"
+        },
+        "ValuationCharts": {
+            "title": "估值趨勢",
+            "pe_ratio": "本益比歷史",
+            "dividend_yield": "殖利率歷史",
+            "reasonable_range": "合理區間",
+            "mean": "平均值",
+            "current": "目前",
+            "high": "最高",
+            "low": "最低",
+            "no_data": "無歷史資料"
         }
     }
 }

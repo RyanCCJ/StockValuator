@@ -9,6 +9,7 @@ from src.schemas.value_analysis import (
     FairValueResponse,
     ScoreBreakdownResponse,
     ValueAnalysisResponse,
+    YearValueResponse,
     ConfidenceScoreResponse,
     DividendScoreResponse,
     ValueScoreResponse,
@@ -160,6 +161,14 @@ async def get_value_analysis(
                 for b in value.breakdown
             ],
         ),
+        pe_history=[
+            YearValueResponse(year=item["year"], value=item["value"])
+            for item in (metrics.pe_history or [])
+        ] or None,
+        dividend_yield_history=[
+            YearValueResponse(year=item["year"], value=item["value"])
+            for item in (metrics.dividend_yield_history or [])
+        ] or None,
     )
 
 

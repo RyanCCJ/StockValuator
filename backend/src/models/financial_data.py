@@ -29,6 +29,8 @@ class FinancialData(Base, TimestampMixin):
     cash_history: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     roe_history: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     net_margin_history: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    pe_history: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    dividend_yield_history: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     interest_coverage: Mapped[float | None] = mapped_column(Float, nullable=True)
     pe_ratio: Mapped[float | None] = mapped_column(Float, nullable=True)
     forward_pe: Mapped[float | None] = mapped_column(Float, nullable=True)

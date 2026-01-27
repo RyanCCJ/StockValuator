@@ -42,6 +42,8 @@ class FinancialMetrics:
     cash_history: list[dict[str, Any]] | None = None
     roe_history: list[dict[str, Any]] | None = None
     net_margin_history: list[dict[str, Any]] | None = None
+    pe_history: list[dict[str, Any]] | None = None
+    dividend_yield_history: list[dict[str, Any]] | None = None
     interest_coverage: float | None = None
     pe_ratio: float | None = None
     forward_pe: float | None = None
@@ -70,6 +72,8 @@ class FinancialMetrics:
             "cash_history": self.cash_history,
             "roe_history": self.roe_history,
             "net_margin_history": self.net_margin_history,
+            "pe_history": self.pe_history,
+            "dividend_yield_history": self.dividend_yield_history,
             "interest_coverage": self.interest_coverage,
             "pe_ratio": self.pe_ratio,
             "forward_pe": self.forward_pe,

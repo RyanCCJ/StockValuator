@@ -91,9 +91,44 @@ class RoicScraper(BaseScraper):
             net_margin_history=self._extract_yearly_metric(
                 last_10_years, "net_income_to_common_margin", divisor=100
             ),
+            pe_history=self._extract_yearly_metric(last_10_years, "pe_ratio"),
+            dividend_yield_history=self._calculate_dividend_yield_history(last_10_years),
             interest_coverage=interest_coverage,
             raw_data={"table_data": last_10_years},
         )
+
+    def _calculate_dividend_yield_history(
+        self, data: list[dict[str, Any]]
+    ) -> list[dict[str, Any]] | None:
+        """Calculate dividend yield as div_per_shr / average_price for each year.
+        
+        Uses (pr_high + pr_low) / 2 as the average price for the year,
+        which provides a more stable measure than just the closing price.
+        """
+        result = []
+        for row in data:
+            year = row.get("fiscal_year")
+            dividend = row.get("div_per_shr")
+            pr_high = row.get("pr_high")
+            pr_low = row.get("pr_low")
+            
+            if year is None or dividend is None:
+                continue
+                
+            div_val = self._safe_float(dividend)
+            high_val = self._safe_float(pr_high)
+            low_val = self._safe_float(pr_low)
+            
+            if div_val is None or div_val <= 0:
+                continue
+            
+            # Calculate average price for the year
+            if high_val is not None and low_val is not None and high_val > 0 and low_val > 0:
+                avg_price = (high_val + low_val) / 2
+                yield_val = div_val / avg_price
+                result.append({"year": int(year), "value": yield_val})
+                
+        return result if result else None
 
     def _extract_yearly_metric(
         self, data: list[dict[str, Any]], key: str, divisor: float = 1.0
