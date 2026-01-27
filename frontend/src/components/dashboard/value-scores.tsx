@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
-import { Loader2, ChevronDown, ChevronUp, Copy, Check, Sparkles, AlertTriangle } from "lucide-react";
+import { Loader2, ChevronDown, ChevronUp, Copy, Check, AlertTriangle, ExternalLink } from "lucide-react";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,6 @@ import {
     getAIPrompt,
     ScoreBreakdown,
     FairValueEstimate,
-    AIScoreResponse,
     ApiError,
 } from "@/services/api";
 
@@ -61,6 +60,7 @@ function ScoreCard({
     breakdown,
     colorClass,
     children,
+    customItemRenderers,
 }: {
     title: string;
     score: number;
@@ -68,6 +68,7 @@ function ScoreCard({
     breakdown: ScoreBreakdown[];
     colorClass: string;
     children?: React.ReactNode;
+    customItemRenderers?: Record<string, (item: ScoreBreakdown) => React.ReactNode>;
 }) {
     const [isExpanded, setIsExpanded] = useState(false);
     const t = useTranslations("ValueAnalysis");
@@ -109,6 +110,15 @@ function ScoreCard({
                 {isExpanded && (
                     <div className="mt-4 space-y-3">
                         {breakdown.map((item, index) => {
+                            // Check for custom renderer first
+                            if (customItemRenderers && customItemRenderers[item.name]) {
+                                return (
+                                    <div key={index}>
+                                        {customItemRenderers[item.name](item)}
+                                    </div>
+                                );
+                            }
+
                             // Try to get translation key from mapping
                             const mappingKey = SCORE_NAME_MAPPING[item.name];
                             // If key exists, translate it using ScoreNames namespace
@@ -392,6 +402,73 @@ function FairValueSection({
     );
 }
 
+function getDividendGrowthScore(years: number): number {
+    if (years >= 50) return 4;
+    if (years >= 25) return 3;
+    if (years >= 10) return 2;
+    if (years >= 5) return 1;
+    return 0;
+}
+
+function DividendGrowthInput({
+    symbol,
+    item,
+    manualYears,
+    onYearsChange,
+}: {
+    symbol: string;
+    item: ScoreBreakdown;
+    manualYears: number | "";
+    onYearsChange: (val: number | "") => void;
+}) {
+    const t = useTranslations("ValueAnalysis");
+    const displayName = t("ScoreNames.dividend_growth");
+
+    return (
+        <div className="p-3 bg-muted/50 rounded-lg">
+            <div className="flex items-center justify-between mb-2">
+                <span className="font-medium text-sm flex items-center gap-2">
+                    {displayName}
+                </span>
+                <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-1">
+                        <input
+                            type="number"
+                            min="0"
+                            className="w-12 p-1 h-7 rounded-sm border text-right text-sm bg-background focus:ring-1 focus:ring-primary"
+                            value={manualYears}
+                            onChange={(e) => {
+                                const val = e.target.value === "" ? "" : Number(e.target.value);
+                                if (val === "" || val >= 0) {
+                                    onYearsChange(val);
+                                }
+                            }}
+                            placeholder="0"
+                        />
+                        <span className="text-xs text-muted-foreground font-medium">{t("years_suffix") || "Y"}</span>
+                    </div>
+                    <span className="text-sm font-semibold">
+                        {item.score}/{item.max_score}
+                    </span>
+                </div>
+            </div>
+
+            <div className="flex items-center justify-between">
+                <p className="text-xs text-muted-foreground">{item.reason}</p>
+                <a
+                    href={`https://seekingalpha.com/symbol/${symbol}/dividends/scorecard`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs flex items-center gap-1 text-primary hover:underline opacity-80 hover:opacity-100"
+                >
+                    {t("check_seeking_alpha")}
+                    <ExternalLink className="h-3 w-3" />
+                </a>
+            </div>
+        </div>
+    );
+}
+
 export function ValueScores({ symbol }: ValueScoresProps) {
     const t = useTranslations("ValueAnalysis");
     const [retryCount, setRetryCount] = useState(0);
@@ -433,11 +510,13 @@ export function ValueScores({ symbol }: ValueScoresProps) {
     // State for local scores - defaults to 0
     const [localMoatScore, setLocalMoatScore] = useState<number | "">(0);
     const [localRiskScore, setLocalRiskScore] = useState<number | "">(0);
+    const [manualDividendYears, setManualDividendYears] = useState<number | "">("");
 
     // Load from localStorage on mount
     useEffect(() => {
         const savedMoat = localStorage.getItem(`moat_${symbol}`);
         const savedRisk = localStorage.getItem(`risk_${symbol}`);
+        const savedDivYears = localStorage.getItem(`dividend_years_${symbol}`);
 
         // If saved, use saved. If not (and mount), keep default 0.
         // Wait, standard practice for localStorage sync:
@@ -453,6 +532,12 @@ export function ValueScores({ symbol }: ValueScoresProps) {
         } else {
             setLocalRiskScore(0);
         }
+
+        if (savedDivYears !== null) {
+            setManualDividendYears(Number(savedDivYears));
+        } else {
+            setManualDividendYears("");
+        }
     }, [symbol]);
 
     // Save to localStorage
@@ -466,6 +551,12 @@ export function ValueScores({ symbol }: ValueScoresProps) {
         setLocalRiskScore(val);
         if (val === "") localStorage.removeItem(`risk_${symbol}`);
         else localStorage.setItem(`risk_${symbol}`, String(val));
+    };
+
+    const handleDividendYearsChange = (val: number | "") => {
+        setManualDividendYears(val);
+        if (val === "") localStorage.removeItem(`dividend_years_${symbol}`);
+        else localStorage.setItem(`dividend_years_${symbol}`, String(val));
     };
 
     const handleRetry = async () => {
@@ -573,6 +664,29 @@ export function ValueScores({ symbol }: ValueScoresProps) {
     // Max possible is Backend Max (11) + Moat Max (5) = 16
     const combinedMaxScore = analysisData.confidence.max_possible + 5;
 
+    // Override Dividend Score if manual input exists
+    let dividendScore = analysisData.dividend.total;
+    const dividendBreakdown = [...analysisData.dividend.breakdown];
+
+    if (typeof manualDividendYears === "number") {
+        const manualScore = getDividendGrowthScore(manualDividendYears);
+
+        // Find existing "Dividend Growth" item
+        const growthIndex = dividendBreakdown.findIndex(item => item.name === "Dividend Growth");
+
+        if (growthIndex !== -1) {
+            const oldScore = dividendBreakdown[growthIndex].score;
+            dividendScore = dividendScore - oldScore + manualScore;
+
+            // Update breakdown item
+            dividendBreakdown[growthIndex] = {
+                ...dividendBreakdown[growthIndex],
+                score: manualScore,
+                reason: `${manualDividendYears}y (Manual)`
+            };
+        }
+    }
+
     return (
         <div className="space-y-6">
             {analysisData.data_status === "insufficient" && (
@@ -616,13 +730,23 @@ export function ValueScores({ symbol }: ValueScoresProps) {
                 </ScoreCard>
                 <ScoreCard
                     title={t("dividend_score")}
-                    score={analysisData.dividend.total}
+                    score={dividendScore}
                     maxScore={analysisData.dividend.max_possible}
-                    breakdown={analysisData.dividend.breakdown}
+                    breakdown={dividendBreakdown}
                     colorClass={getScoreColorClass(
-                        analysisData.dividend.total,
+                        dividendScore,
                         analysisData.dividend.max_possible
                     )}
+                    customItemRenderers={{
+                        "Dividend Growth": (item) => (
+                            <DividendGrowthInput
+                                symbol={symbol}
+                                item={item}
+                                manualYears={manualDividendYears}
+                                onYearsChange={handleDividendYearsChange}
+                            />
+                        )
+                    }}
                 />
                 <ScoreCard
                     title={t("value_score")}
