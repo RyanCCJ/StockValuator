@@ -39,6 +39,7 @@ class FinancialMetrics:
     shares_outstanding_history: list[dict[str, Any]] | None = None
     book_value_history: list[dict[str, Any]] | None = None
     total_debt_history: list[dict[str, Any]] | None = None
+    net_debt_to_capital_history: list[dict[str, Any]] | None = None
     cash_history: list[dict[str, Any]] | None = None
     roe_history: list[dict[str, Any]] | None = None
     net_margin_history: list[dict[str, Any]] | None = None
@@ -69,6 +70,7 @@ class FinancialMetrics:
             "shares_outstanding_history": self.shares_outstanding_history,
             "book_value_history": self.book_value_history,
             "total_debt_history": self.total_debt_history,
+            "net_debt_to_capital_history": self.net_debt_to_capital_history,
             "cash_history": self.cash_history,
             "roe_history": self.roe_history,
             "net_margin_history": self.net_margin_history,

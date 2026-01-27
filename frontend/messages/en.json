@@ -229,6 +229,7 @@
             "eps_stability": "EPS Stability",
             "buyback": "Share Buyback",
             "avg_roe": "Average ROE",
+            "debt_ratio": "Debt Ratio",
             "beta": "Beta",
             "pe_vs_history": "PE History",
             "yield_vs_history": "Yield History",

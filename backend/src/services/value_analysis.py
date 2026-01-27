@@ -132,11 +132,15 @@ def calculate_dividend_score(metrics: FinancialMetrics, beta: float | None = Non
     breakdown.append(roe_avg_score)
     total += roe_avg_score.score
 
+    debt_score = _score_debt_ratio(metrics.net_debt_to_capital_history)
+    breakdown.append(debt_score)
+    total += debt_score.score
+
     beta_score = _score_beta(beta or metrics.beta)
     breakdown.append(beta_score)
     total += beta_score.score
 
-    return DividendScore(total=total, max_possible=14.0, breakdown=breakdown)
+    return DividendScore(total=total, max_possible=13.0, breakdown=breakdown)
 
 
 def calculate_value_score(
@@ -720,4 +724,21 @@ def _calculate_asset_fair_value(
         current_price=current_price,
         is_undervalued=is_undervalued,
         explanation=f"Book Value (${bvps:.2f}) × P/B Threshold ({pb_threshold}) = ${fair_value:.2f}",
+    )
+
+
+def _score_debt_ratio(history: list[dict[str, Any]] | None) -> ScoreBreakdown:
+    latest = _get_latest_value(history)
+    if latest is None:
+        return ScoreBreakdown(name="Debt Ratio", score=0, max_score=1, reason="No data")
+    if latest < 0.20:
+        return ScoreBreakdown(
+            name="Debt Ratio", score=1, max_score=1, reason=f"Debt/Cap={latest:.1%} (safe)"
+        )
+    if latest > 0.50:
+        return ScoreBreakdown(
+            name="Debt Ratio", score=-1, max_score=1, reason=f"Debt/Cap={latest:.1%} (high risk)"
+        )
+    return ScoreBreakdown(
+        name="Debt Ratio", score=0, max_score=1, reason=f"Debt/Cap={latest:.1%} (moderate)"
     )

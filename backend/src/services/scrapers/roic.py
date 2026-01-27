@@ -91,6 +91,9 @@ class RoicScraper(BaseScraper):
             net_margin_history=self._extract_yearly_metric(
                 last_10_years, "net_income_to_common_margin", divisor=100
             ),
+            net_debt_to_capital_history=self._extract_yearly_metric(
+                last_10_years, "net_debt_to_capital", divisor=100
+            ),
             pe_history=self._extract_yearly_metric(last_10_years, "pe_ratio"),
             dividend_yield_history=self._calculate_dividend_yield_history(last_10_years),
             interest_coverage=interest_coverage,

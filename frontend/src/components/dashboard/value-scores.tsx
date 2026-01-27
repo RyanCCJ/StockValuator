@@ -40,6 +40,7 @@ const SCORE_NAME_MAPPING: Record<string, string> = {
     "EPS Stability": "eps_stability",
     "Buyback": "buyback",
     "Avg ROE": "avg_roe",
+    "Debt Ratio": "debt_ratio",
     "Beta": "beta",
 
     // Value Score

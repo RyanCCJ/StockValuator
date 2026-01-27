@@ -26,6 +26,7 @@ class FinancialData(Base, TimestampMixin):
     shares_outstanding_history: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     book_value_history: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     total_debt_history: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    net_debt_to_capital_history: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     cash_history: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     roe_history: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     net_margin_history: Mapped[list | None] = mapped_column(JSONB, nullable=True)
