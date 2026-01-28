@@ -40,6 +40,11 @@ class FinancialData(Base, TimestampMixin):
     sector: Mapped[str | None] = mapped_column(String(100), nullable=True)
     industry: Mapped[str | None] = mapped_column(String(100), nullable=True)
     beta: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # Finviz forward-looking data for Fair Value
+    eps_next_year: Mapped[float | None] = mapped_column(Float, nullable=True)
+    eps_growth_next_5y: Mapped[float | None] = mapped_column(Float, nullable=True)
+    dividend_est: Mapped[float | None] = mapped_column(Float, nullable=True)
+    book_value_per_share: Mapped[float | None] = mapped_column(Float, nullable=True)
     raw_data: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
 

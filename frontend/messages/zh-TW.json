@@ -180,8 +180,8 @@
         "value_score": "價值分數",
         "expand": "展開詳情",
         "collapse": "收合詳情",
-        "fair_value": "合理價值",
-        "fair_value_desc": "根據選定的估值模型計算的內在價值",
+        "fair_value": "合理價格",
+        "fair_value_desc": "根據選定的估值模型計算內在價值",
         "current_price": "目前價格",
         "undervalued": "被低估",
         "overvalued": "被高估",
@@ -251,5 +251,10 @@
             "low": "最低",
             "no_data": "無歷史資料"
         }
+    },
+    "NewsResearch": {
+        "title": "新聞與研究",
+        "news": "新聞",
+        "research": "研究報告"
     }
 }

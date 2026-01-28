@@ -89,6 +89,10 @@ async def _get_from_db(symbol: str, db: AsyncSession) -> FinancialMetrics | None
         sector=row.sector,
         industry=row.industry,
         beta=row.beta,
+        eps_next_year=row.eps_next_year,
+        eps_growth_next_5y=row.eps_growth_next_5y,
+        dividend_est=row.dividend_est,
+        book_value_per_share=row.book_value_per_share,
         raw_data=row.raw_data,
     )
 
@@ -157,6 +161,10 @@ def _merge_metrics(
             sector=finviz.sector or roic.sector,
             industry=finviz.industry or roic.industry,
             beta=finviz.beta or roic.beta,
+            eps_next_year=finviz.eps_next_year,
+            eps_growth_next_5y=finviz.eps_growth_next_5y,
+            dividend_est=finviz.dividend_est,
+            book_value_per_share=finviz.book_value_per_share,
             raw_data={"roic": roic.raw_data, "finviz": finviz.raw_data},
         )
 
@@ -192,6 +200,10 @@ async def _save_to_db(metrics: FinancialMetrics, db: AsyncSession) -> None:
         sector=metrics.sector,
         industry=metrics.industry,
         beta=metrics.beta,
+        eps_next_year=metrics.eps_next_year,
+        eps_growth_next_5y=metrics.eps_growth_next_5y,
+        dividend_est=metrics.dividend_est,
+        book_value_per_share=metrics.book_value_per_share,
         raw_data=metrics.raw_data,
     )
     db.add(record)

@@ -27,7 +27,7 @@ from src.services.ai_scoring import (
     generate_moat_prompt,
     generate_risk_prompt,
 )
-from src.services.market_data import get_stock_price, get_fundamental_data
+from src.services.market_data import get_stock_price, get_fundamental_data, get_sp500_yield
 
 router = APIRouter(prefix="/analysis", tags=["analysis"])
 
@@ -110,9 +110,26 @@ async def get_value_analysis(
     price_data = await get_stock_price(symbol)
     current_price = price_data.get("price") if price_data else None
 
+    # Get dynamic S&P 500 yield
+    sp500_yield = await get_sp500_yield(db)
+
     confidence = calculate_confidence_score(metrics)
     dividend = calculate_dividend_score(metrics, metrics.beta)
-    value = calculate_value_score(metrics, current_price)
+    
+    # Extract Key Statistics for Value Score comparison
+    trailing_pe = fundamental.get("trailing_pe") if fundamental else None
+    # Note: yfinance returns dividend_yield as percentage (e.g., 0.4 = 40%)
+    # Historical data uses decimal form (e.g., 0.004 = 0.4%), so divide by 100
+    dividend_yield_raw = fundamental.get("dividend_yield") if fundamental else None
+    dividend_yield_stat = dividend_yield_raw / 100 if dividend_yield_raw else None
+    
+    value = calculate_value_score(
+        metrics,
+        current_price,
+        sp500_yield=sp500_yield,
+        trailing_pe=trailing_pe,
+        dividend_yield=dividend_yield_stat,
+    )
 
     data_status = _determine_data_status(metrics)
 

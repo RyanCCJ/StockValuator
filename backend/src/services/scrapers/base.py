@@ -53,6 +53,11 @@ class FinancialMetrics:
     sector: str | None = None
     industry: str | None = None
     beta: float | None = None
+    # Finviz forward-looking data for Fair Value calculations
+    eps_next_year: float | None = None          # Finviz "EPS next Y"
+    eps_growth_next_5y: float | None = None     # Finviz "EPS next 5Y" (decimal, e.g., 0.15)
+    dividend_est: float | None = None           # Finviz "Dividend Est"
+    book_value_per_share: float | None = None   # Finviz "Book/sh"
     raw_data: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
@@ -84,6 +89,10 @@ class FinancialMetrics:
             "sector": self.sector,
             "industry": self.industry,
             "beta": self.beta,
+            "eps_next_year": self.eps_next_year,
+            "eps_growth_next_5y": self.eps_growth_next_5y,
+            "dividend_est": self.dividend_est,
+            "book_value_per_share": self.book_value_per_share,
         }
 
     @classmethod

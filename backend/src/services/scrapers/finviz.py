@@ -62,6 +62,10 @@ class FinvizScraper(BaseScraper):
                 await browser.close()
 
     def _parse_metrics(self, symbol: str, data: dict[str, str]) -> FinancialMetrics:
+        # Parse EPS next 5Y growth (comes as percentage like "10.50%")
+        eps_growth_raw = self._safe_float(data.get("EPS next 5Y"))
+        eps_growth_next_5y = eps_growth_raw / 100 if eps_growth_raw else None
+        
         return FinancialMetrics(
             symbol=symbol.upper(),
             source=self.SOURCE_NAME,
@@ -73,5 +77,10 @@ class FinvizScraper(BaseScraper):
             beta=self._safe_float(data.get("Beta")),
             sector=data.get("Sector"),
             industry=data.get("Industry"),
+            # New fields for Fair Value calculations
+            eps_next_year=self._safe_float(data.get("EPS next Y")),
+            eps_growth_next_5y=eps_growth_next_5y,
+            dividend_est=self._safe_float(data.get("Dividend Est")),
+            book_value_per_share=self._safe_float(data.get("Book/sh")),
             raw_data=data,
         )

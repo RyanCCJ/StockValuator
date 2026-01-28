@@ -251,5 +251,10 @@
             "low": "Low",
             "no_data": "Historical data not available"
         }
+    },
+    "NewsResearch": {
+        "title": "News & Research",
+        "news": "News",
+        "research": "Research"
     }
 }

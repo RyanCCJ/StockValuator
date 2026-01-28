@@ -147,15 +147,26 @@ def calculate_value_score(
     metrics: FinancialMetrics,
     current_price: float | None = None,
     sp500_yield: float = 0.015,
+    trailing_pe: float | None = None,
+    dividend_yield: float | None = None,
 ) -> ValueScore:
+    """Calculate value score for a stock.
+    
+    Args:
+        metrics: Financial metrics from scraped data
+        current_price: Current stock price
+        sp500_yield: S&P 500 dividend yield for comparison
+        trailing_pe: Current trailing P/E from Key Statistics (for PE vs History)
+        dividend_yield: Current dividend yield from Key Statistics (for Yield vs History)
+    """
     breakdown: list[ScoreBreakdown] = []
     total = 0.0
 
-    pe_score = _score_pe_relative_to_history(metrics.pe_history)
+    pe_score = _score_pe_relative_to_history(metrics.pe_history, current_pe=trailing_pe)
     breakdown.append(pe_score)
     total += pe_score.score
 
-    yield_score = _score_yield_relative_to_history(metrics.dividend_yield_history)
+    yield_score = _score_yield_relative_to_history(metrics.dividend_yield_history, current_yield=dividend_yield)
     breakdown.append(yield_score)
     total += yield_score.score
 
@@ -186,7 +197,7 @@ def calculate_value_score(
     breakdown.append(pe_roe_score)
     total += pe_roe_score.score
 
-    return ValueScore(total=total, max_possible=12.0, breakdown=breakdown)
+    return ValueScore(total=total, max_possible=9.0, breakdown=breakdown)
 
 
 def calculate_fair_value(
@@ -497,20 +508,51 @@ def _calculate_stats(history: list[dict[str, Any]] | None) -> tuple[float, float
     return mean, std, latest
 
 
+def _calculate_history_stats(history: list[dict[str, Any]] | None) -> tuple[float, float] | None:
+    """Calculate mean and std from history (without extracting latest)."""
+    if not history or len(history) < 2:
+        return None
+    values = [item["value"] for item in history if item.get("value") is not None and item["value"] > 0]
+    if len(values) < 2:
+        return None
+    mean = sum(values) / len(values)
+    variance = sum((v - mean) ** 2 for v in values) / len(values)
+    std = variance ** 0.5
+    return mean, std
+
+
 def _score_yield_relative_to_history(
     dividend_yield_history: list[dict[str, Any]] | None,
+    current_yield: float | None = None,
 ) -> ScoreBreakdown:
     """Score if current dividend yield is at or above upper band (mean + std).
     Higher yield relative to history is better.
+    
+    Args:
+        dividend_yield_history: Historical yield data for calculating mean/std
+        current_yield: Current dividend yield from Key Statistics (preferred)
     """
-    stats = _calculate_stats(dividend_yield_history)
+    # Calculate mean/std from history
+    stats = _calculate_history_stats(dividend_yield_history)
     if stats is None:
         return ScoreBreakdown(
             name="Yield vs History", score=0, max_score=1, reason="Insufficient yield history"
         )
     
-    mean, std, latest = stats
+    mean, std = stats
     upper_band = mean + std
+    
+    # Use provided current_yield, or fall back to latest from history
+    if current_yield is not None:
+        latest = current_yield
+    else:
+        # Fallback to extracting from history
+        full_stats = _calculate_stats(dividend_yield_history)
+        if full_stats is None:
+            return ScoreBreakdown(
+                name="Yield vs History", score=0, max_score=1, reason="No current yield"
+            )
+        _, _, latest = full_stats
     
     # Score if yield is at or above upper band (historically high yield)
     if latest >= upper_band:
@@ -530,18 +572,36 @@ def _score_yield_relative_to_history(
 
 def _score_pe_relative_to_history(
     pe_history: list[dict[str, Any]] | None,
+    current_pe: float | None = None,
 ) -> ScoreBreakdown:
     """Score if current PE is at or below lower band (mean - std).
     Lower PE relative to history is better.
+    
+    Args:
+        pe_history: Historical PE data for calculating mean/std
+        current_pe: Current trailing PE from Key Statistics (preferred)
     """
-    stats = _calculate_stats(pe_history)
+    # Calculate mean/std from history
+    stats = _calculate_history_stats(pe_history)
     if stats is None:
         return ScoreBreakdown(
             name="PE vs History", score=0, max_score=1, reason="Insufficient PE history"
         )
     
-    mean, std, latest = stats
+    mean, std = stats
     lower_band = max(0, mean - std)
+    
+    # Use provided current_pe, or fall back to latest from history
+    if current_pe is not None:
+        latest = current_pe
+    else:
+        # Fallback to extracting from history
+        full_stats = _calculate_stats(pe_history)
+        if full_stats is None:
+            return ScoreBreakdown(
+                name="PE vs History", score=0, max_score=1, reason="No current PE"
+            )
+        _, _, latest = full_stats
     
     # Score if PE is at or below lower band (historically low PE)
     if latest <= lower_band:
@@ -574,10 +634,16 @@ def _score_yield_vs_sp500(div_yield: float | None, sp500_yield: float) -> ScoreB
         return ScoreBreakdown(name="Yield vs S&P500", score=0, max_score=1, reason="No yield data")
     if div_yield >= sp500_yield * 1.5:
         return ScoreBreakdown(
-            name="Yield vs S&P500", score=1, max_score=1, reason=f"{div_yield:.1%} >= 1.5x S&P"
+            name="Yield vs S&P500",
+            score=1,
+            max_score=1,
+            reason=f"{div_yield:.1%} >= 1.5x S&P ({sp500_yield:.2%})",
         )
     return ScoreBreakdown(
-        name="Yield vs S&P500", score=0, max_score=1, reason=f"{div_yield:.1%} < 1.5x S&P"
+        name="Yield vs S&P500",
+        score=0,
+        max_score=1,
+        reason=f"{div_yield:.1%} < 1.5x S&P ({sp500_yield:.2%})",
     )
 
 
@@ -640,21 +706,38 @@ def _calculate_growth_fair_value(
     metrics: FinancialMetrics,
     current_price: float | None,
 ) -> FairValueEstimate:
-    eps = _get_latest_value(metrics.eps_history)
-    growth = _calculate_cagr(metrics.eps_history, 5)
+    # Use Finviz forward-looking data: EPS next Y * EPS next 5Y growth
+    eps_next = metrics.eps_next_year
+    growth_5y = metrics.eps_growth_next_5y
 
-    if eps is None or growth is None or growth <= 0:
+    if eps_next is None or growth_5y is None or growth_5y <= 0:
+        # Fallback to historical data if Finviz data unavailable
+        eps = _get_latest_value(metrics.eps_history)
+        growth = _calculate_cagr(metrics.eps_history, 5)
+        
+        if eps is None or growth is None or growth <= 0:
+            return FairValueEstimate(
+                model=ValuationModel.GROWTH,
+                fair_value=None,
+                current_price=current_price,
+                is_undervalued=False,
+                explanation="Cannot calculate: EPS or growth data unavailable",
+            )
+        
+        growth_pct = growth * 100
+        fair_value = eps * growth_pct
+        is_undervalued = current_price is not None and current_price <= fair_value
         return FairValueEstimate(
             model=ValuationModel.GROWTH,
-            fair_value=None,
+            fair_value=round(fair_value, 2),
             current_price=current_price,
-            is_undervalued=False,
-            explanation="Cannot calculate: EPS or growth data unavailable",
+            is_undervalued=is_undervalued,
+            explanation=f"EPS ({eps:.2f}) × Growth Rate ({growth:.1%}) = ${fair_value:.2f} (historical)",
         )
 
-    # EPS * G formula (simplified Peter Lynch valuation)
-    growth_pct = growth * 100
-    fair_value = eps * growth_pct
+    # Finviz formula: EPS next Y × EPS next 5Y growth (as multiplier)
+    growth_pct = growth_5y * 100
+    fair_value = eps_next * growth_pct
 
     is_undervalued = current_price is not None and current_price <= fair_value
 
@@ -663,7 +746,7 @@ def _calculate_growth_fair_value(
         fair_value=round(fair_value, 2),
         current_price=current_price,
         is_undervalued=is_undervalued,
-        explanation=f"EPS ({eps:.2f}) × Growth Rate ({growth:.1%}) = ${fair_value:.2f}",
+        explanation=f"EPS next Y (${eps_next:.2f}) × Growth 5Y ({growth_5y:.1%}) = ${fair_value:.2f}",
     )
 
 
@@ -672,7 +755,13 @@ def _calculate_dividend_fair_value(
     current_price: float | None,
     expected_return: float,
 ) -> FairValueEstimate:
-    div = _get_latest_value(metrics.dividend_history)
+    # Use Finviz dividend_est, fallback to historical if unavailable
+    div = metrics.dividend_est
+    source = "Finviz"
+    
+    if div is None or div <= 0:
+        div = _get_latest_value(metrics.dividend_history)
+        source = "historical"
 
     if div is None or div <= 0:
         return FairValueEstimate(
@@ -693,7 +782,7 @@ def _calculate_dividend_fair_value(
         fair_value=round(fair_value, 2),
         current_price=current_price,
         is_undervalued=is_undervalued,
-        explanation=f"Dividend (${abs(div):.2f}) / Required Return ({expected_return:.1%}) = ${fair_value:.2f}",
+        explanation=f"Dividend Est (${abs(div):.2f}) / Required Return ({expected_return:.1%}) = ${fair_value:.2f}",
     )
 
 
@@ -702,7 +791,13 @@ def _calculate_asset_fair_value(
     current_price: float | None,
     pb_threshold: float,
 ) -> FairValueEstimate:
-    bvps = _get_latest_value(metrics.book_value_history)
+    # Use Finviz book_value_per_share, fallback to historical if unavailable
+    bvps = metrics.book_value_per_share
+    source = "Finviz"
+    
+    if bvps is None or bvps <= 0:
+        bvps = _get_latest_value(metrics.book_value_history)
+        source = "historical"
 
     if bvps is None or bvps <= 0:
         return FairValueEstimate(
@@ -723,7 +818,7 @@ def _calculate_asset_fair_value(
         fair_value=round(fair_value, 2),
         current_price=current_price,
         is_undervalued=is_undervalued,
-        explanation=f"Book Value (${bvps:.2f}) × P/B Threshold ({pb_threshold}) = ${fair_value:.2f}",
+        explanation=f"Book/sh (${bvps:.2f}) × P/B Threshold ({pb_threshold}) = ${fair_value:.2f}",
     )
 
 
