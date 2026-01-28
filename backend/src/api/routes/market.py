@@ -6,8 +6,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.deps import get_db
-from src.services.market_data import get_stock_price, get_technical_data, get_fundamental_data
-from src.schemas.market import TechnicalDataResponse, FundamentalDataResponse
+from src.schemas.market import FundamentalDataResponse, TechnicalDataResponse
+from src.schemas.news import NewsAndResearchResponse
+from src.services.market_data import (
+    get_company_news_and_research,
+    get_fundamental_data,
+    get_stock_price,
+    get_technical_data,
+)
 
 router = APIRouter(prefix="/market", tags=["market"])
 
@@ -73,3 +79,22 @@ async def get_fundamental(
         )
 
     return fundamental_data
+
+
+@router.get("/news/{symbol}", response_model=NewsAndResearchResponse)
+async def get_news(symbol: str):
+    """
+    Get news and research reports for a symbol.
+
+    Returns recent news articles and research reports from yfinance.
+    Data is cached for 1 hour to prevent API rate limiting.
+    """
+    news_data = await get_company_news_and_research(symbol)
+
+    if not news_data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Could not fetch news for {symbol.upper()}",
+        )
+
+    return news_data

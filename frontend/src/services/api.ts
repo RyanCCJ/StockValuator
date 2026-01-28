@@ -513,6 +513,37 @@ export async function deleteAlert(accessToken: string, alertId: string): Promise
     }
 }
 
+// News and Research API
+interface NewsItem {
+    title: string;
+    publisher: string;
+    link: string;
+    published_at: string | null;
+    news_type: string | null;
+    thumbnail: string | null;
+}
+
+interface ResearchItem {
+    title: string;
+    publisher: string;
+    link: string;
+    published_at: string | null;
+}
+
+interface NewsAndResearchResponse {
+    symbol: string;
+    news: NewsItem[];
+    research: ResearchItem[];
+}
+
+export async function getNewsAndResearch(symbol: string): Promise<NewsAndResearchResponse> {
+    const response = await fetch(`${API_BASE}/market/news/${symbol}`);
+    if (!response.ok) {
+        throw new Error(`Failed to fetch news for ${symbol}`);
+    }
+    return response.json();
+}
+
 export type {
     Trade, TradeData, TradeListResponse,
     PortfolioSummary, Holding, StockPrice,
@@ -522,7 +553,8 @@ export type {
     FundamentalDataResponse, InstitutionalHolder, TopHolding, SectorWeighting,
     PriceAlert, AlertListResponse, CreateAlertData,
     ValueAnalysisResponse, ScoreBreakdown, ConfidenceScore, DividendScore,
-    ValueScoreType, FairValueEstimate, AIScoreResponse, YearValue
+    ValueScoreType, FairValueEstimate, AIScoreResponse, YearValue,
+    NewsItem, ResearchItem, NewsAndResearchResponse
 };
 
 interface ScoreBreakdown {
