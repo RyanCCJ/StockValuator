@@ -238,7 +238,8 @@
             "chowder_rule": "巧達法則",
             "fcf_yield": "現金流殖利率",
             "low_pe": "低本益比",
-            "pe_roe_combo": "低本益比+高ROE"
+            "pe_roe_combo": "低本益比+高ROE",
+            "ddm": "股利折現模型"
         },
         "ValuationCharts": {
             "title": "估值趨勢",

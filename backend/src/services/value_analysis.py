@@ -197,7 +197,17 @@ def calculate_value_score(
     breakdown.append(pe_roe_score)
     total += pe_roe_score.score
 
-    return ValueScore(total=total, max_possible=9.0, breakdown=breakdown)
+    # DDM Valuation Score
+    ddm_price = _calculate_ddm_price(
+        metrics.dividend_est,
+        metrics.dividend_growth_5y,
+        metrics.beta,
+    )
+    ddm_score = _score_ddm(ddm_price, current_price)
+    breakdown.append(ddm_score)
+    total += ddm_score.score
+
+    return ValueScore(total=total, max_possible=10.0, breakdown=breakdown)
 
 
 def calculate_fair_value(
@@ -699,6 +709,80 @@ def _score_pe_with_high_roe(
         )
     return ScoreBreakdown(
         name="PE+ROE Combo", score=0, max_score=1, reason=f"PE={pe:.1f}, ROE={avg_roe:.1%}"
+    )
+
+
+def _calculate_ddm_price(
+    dividend_est: float | None,
+    dividend_growth_5y: float | None,
+    beta: float | None,
+    risk_free_rate: float = 0.04,
+    equity_risk_premium: float = 0.05,
+) -> float | None:
+    """Calculate DDM fair value using Gordon Growth Model.
+    
+    Formula: DDM Price = D / (r - g)
+    Where:
+        D = Expected annual dividend
+        r = Required rate of return (CAPM: Rf + Beta * ERP)
+        g = 5-year dividend growth rate
+    
+    Returns:
+        Fair value (can be negative if g >= r), or None if data missing.
+    """
+    if dividend_est is None or dividend_est <= 0:
+        return None
+    if dividend_growth_5y is None:
+        return None
+    
+    # Calculate discount rate via CAPM
+    if beta is not None:
+        discount_rate = risk_free_rate + beta * equity_risk_premium
+    else:
+        # Default to 10% if beta is missing
+        discount_rate = 0.10
+    
+    denominator = discount_rate - dividend_growth_5y
+    
+    # If g >= r, DDM is mathematically negative/infinite
+    # Return the calculated value (which will be negative or very large)
+    if denominator <= 0:
+        return -1.0  # Signal that g >= r (stock is "infinitely" valuable by DDM)
+    
+    return dividend_est / denominator
+
+
+def _score_ddm(
+    ddm_price: float | None,
+    current_price: float | None,
+) -> ScoreBreakdown:
+    """Score DDM valuation.
+    
+    +1 if:
+        - DDM price is negative (implies g >= r, strong dividend growth)
+        - Current price < DDM price (undervalued)
+    0 otherwise.
+    """
+    if ddm_price is None:
+        return ScoreBreakdown(name="DDM", score=0, max_score=1, reason="No DDM data")
+    
+    if current_price is None:
+        return ScoreBreakdown(name="DDM", score=0, max_score=1, reason="No current price")
+    
+    # Negative DDM means g >= r (infinite value by model)
+    if ddm_price < 0:
+        return ScoreBreakdown(
+            name="DDM", score=1, max_score=1, reason="g ≥ r (strong growth)"
+        )
+    
+    # Undervalued: current price < DDM fair value
+    if current_price < ddm_price:
+        return ScoreBreakdown(
+            name="DDM", score=1, max_score=1, reason=f"${current_price:.2f} < ${ddm_price:.2f}"
+        )
+    
+    return ScoreBreakdown(
+        name="DDM", score=0, max_score=1, reason=f"${current_price:.2f} ≥ ${ddm_price:.2f}"
     )
 
 

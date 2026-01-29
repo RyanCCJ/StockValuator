@@ -57,6 +57,7 @@ class FinancialMetrics:
     eps_next_year: float | None = None          # Finviz "EPS next Y"
     eps_growth_next_5y: float | None = None     # Finviz "EPS next 5Y" (decimal, e.g., 0.15)
     dividend_est: float | None = None           # Finviz "Dividend Est"
+    dividend_growth_5y: float | None = None     # Finviz "Dividend %" 5Y growth (decimal)
     book_value_per_share: float | None = None   # Finviz "Book/sh"
     raw_data: dict[str, Any] | None = None
 
@@ -92,6 +93,7 @@ class FinancialMetrics:
             "eps_next_year": self.eps_next_year,
             "eps_growth_next_5y": self.eps_growth_next_5y,
             "dividend_est": self.dividend_est,
+            "dividend_growth_5y": self.dividend_growth_5y,
             "book_value_per_share": self.book_value_per_share,
         }
 

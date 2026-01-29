@@ -66,6 +66,14 @@ class FinvizScraper(BaseScraper):
         eps_growth_raw = self._safe_float(data.get("EPS next 5Y"))
         eps_growth_next_5y = eps_growth_raw / 100 if eps_growth_raw else None
         
+        # Parse Dividend 5Y growth from "Dividend Gr. 3/5Y" field
+        # Format: "4.26% 4.98%" where first is 3Y, second is 5Y
+        dividend_growth_5y = self._parse_dividend_growth_5y(data.get("Dividend Gr. 3/5Y"))
+        
+        # Parse Dividend Est - key has a period: "Dividend Est."
+        # Format: "1.08 (0.42%)" - extract the dollar amount
+        dividend_est = self._parse_dividend_est(data.get("Dividend Est."))
+        
         return FinancialMetrics(
             symbol=symbol.upper(),
             source=self.SOURCE_NAME,
@@ -80,7 +88,35 @@ class FinvizScraper(BaseScraper):
             # New fields for Fair Value calculations
             eps_next_year=self._safe_float(data.get("EPS next Y")),
             eps_growth_next_5y=eps_growth_next_5y,
-            dividend_est=self._safe_float(data.get("Dividend Est")),
+            dividend_est=dividend_est,
+            dividend_growth_5y=dividend_growth_5y,
             book_value_per_share=self._safe_float(data.get("Book/sh")),
             raw_data=data,
         )
+
+    def _parse_dividend_growth_5y(self, value: str | None) -> float | None:
+        """Parse 5Y dividend growth from 'Dividend Gr. 3/5Y' field.
+        
+        Format: "4.26% 4.98%" where first is 3Y, second is 5Y.
+        Returns decimal (e.g., 0.0498 for 4.98%).
+        """
+        if not value or value in ("-", "N/A", ""):
+            return None
+        parts = value.split()
+        if len(parts) >= 2:
+            # Second value is 5Y growth
+            growth_5y = self._safe_float(parts[1])
+            if growth_5y is not None:
+                return growth_5y / 100
+        return None
+
+    def _parse_dividend_est(self, value: str | None) -> float | None:
+        """Parse dividend estimate from 'Dividend Est.' field.
+        
+        Format: "1.08 (0.42%)" - extract the dollar amount (1.08).
+        """
+        if not value or value in ("-", "N/A", ""):
+            return None
+        # Extract the first number before any parenthesis
+        parts = value.split("(")[0].strip()
+        return self._safe_float(parts)

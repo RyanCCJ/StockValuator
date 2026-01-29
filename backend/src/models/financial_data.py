@@ -44,6 +44,7 @@ class FinancialData(Base, TimestampMixin):
     eps_next_year: Mapped[float | None] = mapped_column(Float, nullable=True)
     eps_growth_next_5y: Mapped[float | None] = mapped_column(Float, nullable=True)
     dividend_est: Mapped[float | None] = mapped_column(Float, nullable=True)
+    dividend_growth_5y: Mapped[float | None] = mapped_column(Float, nullable=True)
     book_value_per_share: Mapped[float | None] = mapped_column(Float, nullable=True)
     raw_data: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
