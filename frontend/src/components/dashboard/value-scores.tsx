@@ -54,6 +54,7 @@ const SCORE_NAME_MAPPING: Record<string, string> = {
     "PE+ROE Combo": "pe_roe_combo",
     "PE vs S&P500": "low_pe", // Fallback if backend sends different variation
     "DDM": "ddm",
+    "F-Score": "f_score",
 };
 
 function ScoreCard({

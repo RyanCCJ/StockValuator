@@ -207,7 +207,12 @@ def calculate_value_score(
     breakdown.append(ddm_score)
     total += ddm_score.score
 
-    return ValueScore(total=total, max_possible=10.0, breakdown=breakdown)
+    # Piotroski F-Score
+    f_score_result = _score_piotroski_f_score(metrics)
+    breakdown.append(f_score_result)
+    total += f_score_result.score
+
+    return ValueScore(total=total, max_possible=11.0, breakdown=breakdown)
 
 
 def calculate_fair_value(
@@ -785,6 +790,133 @@ def _score_ddm(
         name="DDM", score=0, max_score=1, reason=f"${current_price:.2f} ≥ ${ddm_price:.2f}"
     )
 
+
+def calculate_piotroski_f_score(metrics: FinancialMetrics) -> tuple[int, list[str]]:
+    """Calculate the Piotroski F-Score (0-9) for fundamental health analysis.
+    
+    The score evaluates three categories:
+    1. Profitability (4 points): ROA > 0, CFO > 0, ROA improving, CFO > EPS (accruals)
+    2. Leverage/Liquidity (3 points): Debt ratio decreasing, Current ratio improving, No dilution
+    3. Efficiency (2 points): Gross margin improving, Asset turnover improving
+    
+    Returns:
+        Tuple of (f_score, list of reasons for each scored point)
+    """
+    score = 0
+    reasons = []
+    
+    # Helper to get values for current and previous year from history
+    def get_year_values(history: list[dict[str, Any]] | None) -> tuple[float | None, float | None]:
+        """Returns (current_year_value, previous_year_value) from sorted history."""
+        if not history or len(history) < 1:
+            return None, None
+        sorted_data = sorted(history, key=lambda x: x.get("year", 0))
+        current = sorted_data[-1].get("value") if sorted_data else None
+        previous = sorted_data[-2].get("value") if len(sorted_data) >= 2 else None
+        return current, previous
+    
+    # ===== PROFITABILITY (4 points) =====
+    
+    # F1: ROA > 0 (Return on Assets is positive)
+    roa_current, roa_prev = get_year_values(metrics.return_on_assets_history)
+    if roa_current is not None and roa_current > 0:
+        score += 1
+        reasons.append(f"ROA={roa_current:.1%} (positive)")
+    
+    # F2: CFO > 0 (Operating Cash Flow is positive)
+    cfo_current, cfo_prev = get_year_values(metrics.cash_flow_per_share_history)
+    if cfo_current is not None and cfo_current > 0:
+        score += 1
+        reasons.append(f"CFO=${cfo_current:.2f} (positive)")
+    
+    # F3: Delta ROA (ROA is higher than previous year)
+    if roa_current is not None and roa_prev is not None and roa_current > roa_prev:
+        score += 1
+        reasons.append(f"ROA improving: {roa_prev:.1%}→{roa_current:.1%}")
+    
+    # F4: Accruals (CFO > EPS, meaning earnings quality is good)
+    eps_current, _ = get_year_values(metrics.eps_history)
+    if cfo_current is not None and eps_current is not None and cfo_current > eps_current:
+        score += 1
+        reasons.append(f"CFO=${cfo_current:.2f} > EPS=${eps_current:.2f}")
+    
+    # ===== LEVERAGE, LIQUIDITY, SOURCE OF FUNDS (3 points) =====
+    
+    # F5: Leverage (Long-term debt ratio is lower than previous year)
+    debt_current, debt_prev = get_year_values(metrics.long_term_debt_to_total_assets_history)
+    if debt_current is not None and debt_prev is not None and debt_current < debt_prev:
+        score += 1
+        reasons.append(f"LT Debt/Assets: {debt_prev:.1%}→{debt_current:.1%}")
+    elif debt_current is not None and debt_current == 0:
+        # No debt is also good
+        score += 1
+        reasons.append("No long-term debt")
+    
+    # F6: Liquidity (Current ratio is higher than previous year)
+    cr_current, cr_prev = get_year_values(metrics.current_ratio_history)
+    if cr_current is not None and cr_prev is not None and cr_current > cr_prev:
+        score += 1
+        reasons.append(f"Current Ratio: {cr_prev:.2f}→{cr_current:.2f}")
+    
+    # F7: No Dilution (Shares outstanding not increased)
+    shares_current, shares_prev = get_year_values(metrics.shares_outstanding_history)
+    if shares_current is not None and shares_prev is not None and shares_current <= shares_prev:
+        score += 1
+        reasons.append(f"Shares: {shares_prev:.0f}M→{shares_current:.0f}M (no dilution)")
+    
+    # ===== OPERATING EFFICIENCY (2 points) =====
+    
+    # F8: Gross Margin (Gross margin is higher than previous year)
+    gm_current, gm_prev = get_year_values(metrics.gross_margin_history)
+    if gm_current is not None and gm_prev is not None and gm_current > gm_prev:
+        score += 1
+        reasons.append(f"Gross Margin: {gm_prev:.1%}→{gm_current:.1%}")
+    
+    # F9: Asset Turnover (Revenue/Assets ratio is higher than previous year)
+    # Asset Turnover = Revenue per Share / (Book Value per Share / Common Equity to Total Assets)
+    # Simplified: We use revenue_history and book_value_history with common_equity ratio
+    rev_current, rev_prev = get_year_values(metrics.revenue_history)
+    bv_current, bv_prev = get_year_values(metrics.book_value_history)
+    eq_ratio_current, eq_ratio_prev = get_year_values(metrics.common_equity_to_total_assets_history)
+    
+    if (rev_current and rev_prev and bv_current and bv_prev and 
+        eq_ratio_current and eq_ratio_prev and eq_ratio_current > 0 and eq_ratio_prev > 0):
+        # Total assets per share = Book value / Equity ratio
+        assets_current = bv_current / eq_ratio_current
+        assets_prev = bv_prev / eq_ratio_prev
+        if assets_current > 0 and assets_prev > 0:
+            turnover_current = rev_current / assets_current
+            turnover_prev = rev_prev / assets_prev
+            if turnover_current > turnover_prev:
+                score += 1
+                reasons.append(f"Asset Turnover: {turnover_prev:.2f}→{turnover_current:.2f}")
+    
+    return score, reasons
+
+
+def _score_piotroski_f_score(metrics: FinancialMetrics) -> ScoreBreakdown:
+    """Score based on Piotroski F-Score. +1 if F-Score > 5 (strong fundamentals)."""
+    f_score, reasons = calculate_piotroski_f_score(metrics)
+    
+    # Check if we have enough data to calculate
+    if not metrics.return_on_assets_history and not metrics.cash_flow_per_share_history:
+        return ScoreBreakdown(
+            name="F-Score", score=0, max_score=1, reason="Insufficient F-Score data"
+        )
+    
+    if f_score > 5:
+        return ScoreBreakdown(
+            name="F-Score",
+            score=1,
+            max_score=1,
+            reason=f"F-Score={f_score}/9 (strong)",
+        )
+    return ScoreBreakdown(
+        name="F-Score",
+        score=0,
+        max_score=1,
+        reason=f"F-Score={f_score}/9 (weak)",
+    )
 
 def _calculate_growth_fair_value(
     metrics: FinancialMetrics,

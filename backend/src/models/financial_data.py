@@ -46,6 +46,15 @@ class FinancialData(Base, TimestampMixin):
     dividend_est: Mapped[float | None] = mapped_column(Float, nullable=True)
     dividend_growth_5y: Mapped[float | None] = mapped_column(Float, nullable=True)
     book_value_per_share: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    # Piotroski F-Score Data
+    return_on_assets_history: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    cash_flow_per_share_history: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    gross_margin_history: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    long_term_debt_to_total_assets_history: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    current_ratio_history: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+    common_equity_to_total_assets_history: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+
     raw_data: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
 

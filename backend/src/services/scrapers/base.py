@@ -59,6 +59,13 @@ class FinancialMetrics:
     dividend_est: float | None = None           # Finviz "Dividend Est"
     dividend_growth_5y: float | None = None     # Finviz "Dividend %" 5Y growth (decimal)
     book_value_per_share: float | None = None   # Finviz "Book/sh"
+    # Piotroski F-Score Data
+    return_on_assets_history: list[dict[str, Any]] | None = None
+    cash_flow_per_share_history: list[dict[str, Any]] | None = None
+    gross_margin_history: list[dict[str, Any]] | None = None
+    long_term_debt_to_total_assets_history: list[dict[str, Any]] | None = None
+    current_ratio_history: list[dict[str, Any]] | None = None
+    common_equity_to_total_assets_history: list[dict[str, Any]] | None = None
     raw_data: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
@@ -95,6 +102,12 @@ class FinancialMetrics:
             "dividend_est": self.dividend_est,
             "dividend_growth_5y": self.dividend_growth_5y,
             "book_value_per_share": self.book_value_per_share,
+            "return_on_assets_history": self.return_on_assets_history,
+            "cash_flow_per_share_history": self.cash_flow_per_share_history,
+            "gross_margin_history": self.gross_margin_history,
+            "long_term_debt_to_total_assets_history": self.long_term_debt_to_total_assets_history,
+            "current_ratio_history": self.current_ratio_history,
+            "common_equity_to_total_assets_history": self.common_equity_to_total_assets_history,
         }
 
     @classmethod

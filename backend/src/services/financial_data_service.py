@@ -94,6 +94,12 @@ async def _get_from_db(symbol: str, db: AsyncSession) -> FinancialMetrics | None
         dividend_est=row.dividend_est,
         dividend_growth_5y=row.dividend_growth_5y,
         book_value_per_share=row.book_value_per_share,
+        return_on_assets_history=row.return_on_assets_history,
+        cash_flow_per_share_history=row.cash_flow_per_share_history,
+        gross_margin_history=row.gross_margin_history,
+        long_term_debt_to_total_assets_history=row.long_term_debt_to_total_assets_history,
+        current_ratio_history=row.current_ratio_history,
+        common_equity_to_total_assets_history=row.common_equity_to_total_assets_history,
         raw_data=row.raw_data,
     )
 
@@ -167,6 +173,12 @@ def _merge_metrics(
             dividend_est=finviz.dividend_est,
             dividend_growth_5y=finviz.dividend_growth_5y,
             book_value_per_share=finviz.book_value_per_share,
+            return_on_assets_history=roic.return_on_assets_history,
+            cash_flow_per_share_history=roic.cash_flow_per_share_history,
+            gross_margin_history=roic.gross_margin_history,
+            long_term_debt_to_total_assets_history=roic.long_term_debt_to_total_assets_history,
+            current_ratio_history=roic.current_ratio_history,
+            common_equity_to_total_assets_history=roic.common_equity_to_total_assets_history,
             raw_data={"roic": roic.raw_data, "finviz": finviz.raw_data},
         )
 
@@ -207,6 +219,12 @@ async def _save_to_db(metrics: FinancialMetrics, db: AsyncSession) -> None:
         dividend_est=metrics.dividend_est,
         dividend_growth_5y=metrics.dividend_growth_5y,
         book_value_per_share=metrics.book_value_per_share,
+        return_on_assets_history=metrics.return_on_assets_history,
+        cash_flow_per_share_history=metrics.cash_flow_per_share_history,
+        gross_margin_history=metrics.gross_margin_history,
+        long_term_debt_to_total_assets_history=metrics.long_term_debt_to_total_assets_history,
+        current_ratio_history=metrics.current_ratio_history,
+        common_equity_to_total_assets_history=metrics.common_equity_to_total_assets_history,
         raw_data=metrics.raw_data,
     )
     db.add(record)

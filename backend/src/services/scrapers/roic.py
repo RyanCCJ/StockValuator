@@ -97,6 +97,23 @@ class RoicScraper(BaseScraper):
             pe_history=self._extract_yearly_metric(last_10_years, "pe_ratio"),
             dividend_yield_history=self._calculate_dividend_yield_history(last_10_years),
             interest_coverage=interest_coverage,
+            # Piotroski F-Score fields
+            return_on_assets_history=self._extract_yearly_metric(
+                last_10_years, "return_on_asset", divisor=100
+            ),
+            cash_flow_per_share_history=self._extract_yearly_metric(
+                last_10_years, "cash_flow_per_sh"
+            ),
+            gross_margin_history=self._extract_yearly_metric(
+                last_10_years, "gross_margin", divisor=100
+            ),
+            long_term_debt_to_total_assets_history=self._extract_yearly_metric(
+                last_10_years, "lt_debt_to_tot_asset", divisor=100
+            ),
+            current_ratio_history=self._extract_yearly_metric(last_10_years, "cur_ratio"),
+            common_equity_to_total_assets_history=self._extract_yearly_metric(
+                last_10_years, "com_eqy_to_tot_asset", divisor=100
+            ),
             raw_data={"table_data": last_10_years},
         )
 

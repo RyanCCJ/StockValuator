@@ -239,7 +239,8 @@
             "fcf_yield": "現金流殖利率",
             "low_pe": "低本益比",
             "pe_roe_combo": "低本益比+高ROE",
-            "ddm": "股利折現模型"
+            "ddm": "股利折現模型",
+            "f_score": "皮爾托斯基分數"
         },
         "ValuationCharts": {
             "title": "估值趨勢",

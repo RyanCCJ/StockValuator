@@ -239,7 +239,8 @@
             "fcf_yield": "FCF Yield",
             "low_pe": "Low PE",
             "pe_roe_combo": "PE + ROE Combo",
-            "ddm": "DDM"
+            "ddm": "DDM",
+            "f_score": "Piotroski F-Score"
         },
         "ValuationCharts": {
             "title": "Valuation Trends",
