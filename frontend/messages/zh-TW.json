@@ -130,6 +130,8 @@
     "StockDetail": {
         "technical_analysis": "技術分析",
         "value_analysis": "價值分析",
+        "company_info": "公司資訊",
+        "fund_info": "基金資訊",
         "set_alert": "設定提醒",
         "error_loading_data": "載入資料失敗",
         "key_statistics": "關鍵統計",
@@ -161,7 +163,8 @@
         "symbol": "代號",
         "name": "名稱",
         "weight": "權重",
-        "sector_weightings": "產業配置"
+        "sector_weightings": "產業配置",
+        "analyst_rating_disclaimer": "分析師評級僅供參考，不構成投資建議"
     },
     "Alerts": {
         "set_alert_for": "設定 {symbol} 提醒",
@@ -180,6 +183,7 @@
         "value_score": "價值分數",
         "expand": "展開詳情",
         "collapse": "收合詳情",
+        "incomplete_hint": "請完成標記項目",
         "fair_value": "合理價格",
         "fair_value_desc": "根據選定的估值模型計算內在價值",
         "current_price": "目前價格",

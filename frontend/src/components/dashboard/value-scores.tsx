@@ -57,49 +57,69 @@ const SCORE_NAME_MAPPING: Record<string, string> = {
     "F-Score": "f_score",
 };
 
-function ScoreCard({
-    title,
-    score,
-    maxScore,
-    breakdown,
-    colorClass,
-    children,
-    customItemRenderers,
-}: {
+interface ScoreSection {
     title: string;
     score: number;
     maxScore: number;
-    breakdown: ScoreBreakdown[];
     colorClass: string;
+    breakdown: ScoreBreakdown[];
     children?: React.ReactNode;
     customItemRenderers?: Record<string, (item: ScoreBreakdown) => React.ReactNode>;
+    hasIncomplete?: boolean;
+}
+
+function UnifiedScoreCard({
+    sections,
+    isExpanded,
+    onToggle,
+}: {
+    sections: ScoreSection[];
+    isExpanded: boolean;
+    onToggle: () => void;
 }) {
-    const [isExpanded, setIsExpanded] = useState(false);
     const t = useTranslations("ValueAnalysis");
-    const percentage = maxScore > 0 ? (score / maxScore) * 100 : 0;
+    const hasAnyIncomplete = sections.some(s => s.hasIncomplete);
 
     return (
         <Card>
             <CardHeader className="pb-2">
-                <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg">{title}</CardTitle>
-                    <span className="text-xl font-bold">
-                        {score}/{maxScore}
-                    </span>
-                </div>
-                <div className="h-2 bg-muted rounded-full overflow-hidden mt-2">
-                    <div
-                        className={`h-full ${colorClass} transition-all duration-300`}
-                        style={{ width: `${percentage}%` }}
-                    />
+                {hasAnyIncomplete && (
+                    <p className="text-xs mb-2" style={{ color: "#f59e0b", paddingLeft: "8px" }}>
+                        {t("incomplete_hint")}
+                    </p>
+                )}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {sections.map((section, idx) => {
+                        const percentage = section.maxScore > 0 ? (section.score / section.maxScore) * 100 : 0;
+                        return (
+                            <div
+                                key={idx}
+                                className="p-3 rounded-lg"
+                                style={section.hasIncomplete ? { border: "2px solid #f59e0b" } : undefined}
+                            >
+                                <div className="flex items-center justify-between">
+                                    <CardTitle className="text-base">{section.title}</CardTitle>
+                                    <span className="text-lg font-bold">
+                                        {section.score}/{section.maxScore}
+                                    </span>
+                                </div>
+                                <div className="h-2 bg-muted rounded-full overflow-hidden mt-2">
+                                    <div
+                                        className={`h-full ${section.colorClass} transition-all duration-300`}
+                                        style={{ width: `${percentage}%` }}
+                                    />
+                                </div>
+                            </div>
+                        );
+                    })}
                 </div>
             </CardHeader>
             <CardContent>
                 <Button
                     variant="ghost"
                     size="sm"
-                    className="w-full flex items-center justify-center gap-2 mt-2"
-                    onClick={() => setIsExpanded(!isExpanded)}
+                    className="w-full flex items-center justify-center gap-2"
+                    onClick={onToggle}
                 >
                     {isExpanded ? (
                         <>
@@ -112,38 +132,40 @@ function ScoreCard({
                     )}
                 </Button>
                 {isExpanded && (
-                    <div className="mt-4 space-y-3">
-                        {breakdown.map((item, index) => {
-                            // Check for custom renderer first
-                            if (customItemRenderers && customItemRenderers[item.name]) {
-                                return (
-                                    <div key={index}>
-                                        {customItemRenderers[item.name](item)}
-                                    </div>
-                                );
-                            }
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+                        {sections.map((section, sectionIdx) => (
+                            <div key={sectionIdx} className="space-y-3">
+                                {section.breakdown.map((item, index) => {
+                                    // Check for custom renderer first
+                                    if (section.customItemRenderers && section.customItemRenderers[item.name]) {
+                                        return (
+                                            <div key={index}>
+                                                {section.customItemRenderers[item.name](item)}
+                                            </div>
+                                        );
+                                    }
 
-                            // Try to get translation key from mapping
-                            const mappingKey = SCORE_NAME_MAPPING[item.name];
-                            // If key exists, translate it using ScoreNames namespace
-                            // Otherwise fallback to original name
-                            const displayName = mappingKey
-                                ? t(`ScoreNames.${mappingKey}`)
-                                : item.name;
+                                    // Try to get translation key from mapping
+                                    const mappingKey = SCORE_NAME_MAPPING[item.name];
+                                    const displayName = mappingKey
+                                        ? t(`ScoreNames.${mappingKey}`)
+                                        : item.name;
 
-                            return (
-                                <div key={index} className="p-3 bg-muted/50 rounded-lg">
-                                    <div className="flex items-center justify-between mb-1">
-                                        <span className="font-medium text-sm">{displayName}</span>
-                                        <span className="text-sm font-semibold">
-                                            {item.score}/{item.max_score}
-                                        </span>
-                                    </div>
-                                    <p className="text-xs text-muted-foreground">{item.reason}</p>
-                                </div>
-                            );
-                        })}
-                        {children}
+                                    return (
+                                        <div key={index} className="p-3 bg-muted/50 rounded-lg">
+                                            <div className="flex items-center justify-between mb-1">
+                                                <span className="font-medium text-sm">{displayName}</span>
+                                                <span className="text-sm font-semibold">
+                                                    {item.score}/{item.max_score}
+                                                </span>
+                                            </div>
+                                            <p className="text-xs text-muted-foreground">{item.reason}</p>
+                                        </div>
+                                    );
+                                })}
+                                {section.children}
+                            </div>
+                        ))}
                     </div>
                 )}
             </CardContent>
@@ -162,12 +184,16 @@ function MoatRiskInputs({
     symbol,
     localMoatScore,
     localRiskScore,
+    hasMoatBeenSet,
+    hasRiskBeenSet,
     onMoatChange,
     onRiskChange,
 }: {
     symbol: string;
     localMoatScore: number | "";
     localRiskScore: number | "";
+    hasMoatBeenSet: boolean;
+    hasRiskBeenSet: boolean;
     onMoatChange: (val: number | "") => void;
     onRiskChange: (val: number | "") => void;
 }) {
@@ -218,10 +244,16 @@ function MoatRiskInputs({
         setTimeout(() => setCopiedPrompt(null), 2000);
     };
 
+    const isMoatEmpty = !hasMoatBeenSet;
+    const isRiskEmpty = !hasRiskBeenSet;
+
     return (
         <div className="space-y-3 mt-3">
             {/* Moat Score Row */}
-            <div className="p-3 bg-muted/50 rounded-lg">
+            <div
+                className="p-3 bg-muted/50 rounded-lg"
+                style={isMoatEmpty ? { border: "2px solid #f59e0b" } : undefined}
+            >
                 <div className="flex items-center justify-between mb-2">
                     <span className="font-medium text-sm flex items-center gap-2">
                         {t("moat_score")}
@@ -269,7 +301,10 @@ function MoatRiskInputs({
             </div>
 
             {/* Risk Score Row */}
-            <div className="p-3 bg-muted/50 rounded-lg">
+            <div
+                className="p-3 bg-muted/50 rounded-lg"
+                style={isRiskEmpty ? { border: "2px solid #f59e0b" } : undefined}
+            >
                 <div className="flex items-center justify-between mb-2">
                     <span className="font-medium text-sm flex items-center gap-2">
                         {t("risk_score")}
@@ -347,7 +382,7 @@ function FairValueSection({
     return (
         <Card>
             <CardHeader>
-                <CardTitle>{t("fair_value")}</CardTitle>
+                <CardTitle className="text-lg">{t("fair_value")}</CardTitle>
                 <CardDescription>{t("fair_value_desc")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -427,9 +462,13 @@ function DividendGrowthInput({
 }) {
     const t = useTranslations("ValueAnalysis");
     const displayName = t("ScoreNames.dividend_growth");
+    const isYearsEmpty = manualYears === "";
 
     return (
-        <div className="p-3 bg-muted/50 rounded-lg">
+        <div
+            className="p-3 bg-muted/50 rounded-lg"
+            style={isYearsEmpty ? { border: "2px solid #f59e0b" } : undefined}
+        >
             <div className="flex items-center justify-between mb-2">
                 <span className="font-medium text-sm flex items-center gap-2">
                     {displayName}
@@ -514,7 +553,10 @@ export function ValueScores({ symbol }: ValueScoresProps) {
     // State for local scores - defaults to 0
     const [localMoatScore, setLocalMoatScore] = useState<number | "">(0);
     const [localRiskScore, setLocalRiskScore] = useState<number | "">(0);
+    const [hasMoatBeenSet, setHasMoatBeenSet] = useState(false);
+    const [hasRiskBeenSet, setHasRiskBeenSet] = useState(false);
     const [manualDividendYears, setManualDividendYears] = useState<number | "">("");
+    const [isScoreCardsExpanded, setIsScoreCardsExpanded] = useState(false);
 
     // Load from localStorage on mount
     useEffect(() => {
@@ -522,19 +564,21 @@ export function ValueScores({ symbol }: ValueScoresProps) {
         const savedRisk = localStorage.getItem(`risk_${symbol}`);
         const savedDivYears = localStorage.getItem(`dividend_years_${symbol}`);
 
-        // If saved, use saved. If not (and mount), keep default 0.
-        // Wait, standard practice for localStorage sync:
+        // Track if user has ever set these values
         if (savedMoat !== null) {
             setLocalMoatScore(Number(savedMoat));
+            setHasMoatBeenSet(true);
         } else {
-            // Ensure it's 0 if nothing saved
             setLocalMoatScore(0);
+            setHasMoatBeenSet(false);
         }
 
         if (savedRisk !== null) {
             setLocalRiskScore(Number(savedRisk));
+            setHasRiskBeenSet(true);
         } else {
             setLocalRiskScore(0);
+            setHasRiskBeenSet(false);
         }
 
         if (savedDivYears !== null) {
@@ -547,12 +591,14 @@ export function ValueScores({ symbol }: ValueScoresProps) {
     // Save to localStorage
     const handleMoatChange = (val: number | "") => {
         setLocalMoatScore(val);
+        setHasMoatBeenSet(true);
         if (val === "") localStorage.removeItem(`moat_${symbol}`);
         else localStorage.setItem(`moat_${symbol}`, String(val));
     };
 
     const handleRiskChange = (val: number | "") => {
         setLocalRiskScore(val);
+        setHasRiskBeenSet(true);
         if (val === "") localStorage.removeItem(`risk_${symbol}`);
         else localStorage.setItem(`risk_${symbol}`, String(val));
     };
@@ -715,60 +761,61 @@ export function ValueScores({ symbol }: ValueScoresProps) {
                 dividendYieldHistory={analysisData.dividend_yield_history}
             />
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <ScoreCard
-                    title={t("confidence_score")}
-                    score={combinedConfidenceScore}
-                    maxScore={combinedMaxScore}
-                    breakdown={analysisData.confidence.breakdown}
-                    colorClass={
-                        combinedConfidenceScore >= 7
-                            ? "bg-green-500"
-                            : getScoreColorClass(
-                                combinedConfidenceScore,
-                                combinedMaxScore
-                            )
-                    }
-                >
-                    <MoatRiskInputs
-                        symbol={symbol}
-                        localMoatScore={localMoatScore}
-                        localRiskScore={localRiskScore}
-                        onMoatChange={handleMoatChange}
-                        onRiskChange={handleRiskChange}
-                    />
-                </ScoreCard>
-                <ScoreCard
-                    title={t("dividend_score")}
-                    score={dividendScore}
-                    maxScore={analysisData.dividend.max_possible}
-                    breakdown={dividendBreakdown}
-                    colorClass={getScoreColorClass(
-                        dividendScore,
-                        analysisData.dividend.max_possible
-                    )}
-                    customItemRenderers={{
-                        "Dividend Growth": (item) => (
-                            <DividendGrowthInput
-                                symbol={symbol}
-                                item={item}
-                                manualYears={manualDividendYears}
-                                onYearsChange={handleDividendYearsChange}
-                            />
-                        )
-                    }}
+            {/* Score Cards - Only show when data is sufficient (roic.ai scraping succeeded) */}
+            {analysisData.data_status !== "insufficient" && (
+                <UnifiedScoreCard
+                    sections={[
+                        {
+                            title: t("confidence_score"),
+                            score: combinedConfidenceScore,
+                            maxScore: combinedMaxScore,
+                            breakdown: analysisData.confidence.breakdown,
+                            colorClass: combinedConfidenceScore >= 7
+                                ? "bg-green-500"
+                                : getScoreColorClass(combinedConfidenceScore, combinedMaxScore),
+                            hasIncomplete: !hasMoatBeenSet || !hasRiskBeenSet,
+                            children: (
+                                <MoatRiskInputs
+                                    symbol={symbol}
+                                    localMoatScore={localMoatScore}
+                                    localRiskScore={localRiskScore}
+                                    hasMoatBeenSet={hasMoatBeenSet}
+                                    hasRiskBeenSet={hasRiskBeenSet}
+                                    onMoatChange={handleMoatChange}
+                                    onRiskChange={handleRiskChange}
+                                />
+                            ),
+                        },
+                        {
+                            title: t("dividend_score"),
+                            score: dividendScore,
+                            maxScore: analysisData.dividend.max_possible,
+                            breakdown: dividendBreakdown,
+                            colorClass: getScoreColorClass(dividendScore, analysisData.dividend.max_possible),
+                            hasIncomplete: manualDividendYears === "",
+                            customItemRenderers: {
+                                "Dividend Growth": (item) => (
+                                    <DividendGrowthInput
+                                        symbol={symbol}
+                                        item={item}
+                                        manualYears={manualDividendYears}
+                                        onYearsChange={handleDividendYearsChange}
+                                    />
+                                ),
+                            },
+                        },
+                        {
+                            title: t("value_score"),
+                            score: analysisData.value.total,
+                            maxScore: analysisData.value.max_possible,
+                            breakdown: analysisData.value.breakdown,
+                            colorClass: getScoreColorClass(analysisData.value.total, analysisData.value.max_possible),
+                        },
+                    ]}
+                    isExpanded={isScoreCardsExpanded}
+                    onToggle={() => setIsScoreCardsExpanded(!isScoreCardsExpanded)}
                 />
-                <ScoreCard
-                    title={t("value_score")}
-                    score={analysisData.value.total}
-                    maxScore={analysisData.value.max_possible}
-                    breakdown={analysisData.value.breakdown}
-                    colorClass={getScoreColorClass(
-                        analysisData.value.total,
-                        analysisData.value.max_possible
-                    )}
-                />
-            </div>
+            )}
 
             <FairValueSection symbol={symbol} initialFairValue={analysisData.fair_value} />
         </div>

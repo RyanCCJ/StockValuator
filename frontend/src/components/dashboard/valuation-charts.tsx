@@ -241,7 +241,7 @@ export function ValuationCharts({ peHistory, dividendYieldHistory }: ValuationCh
     return (
         <Card>
             <CardHeader className="pb-2">
-                <CardTitle>{t("title")}</CardTitle>
+                <CardTitle className="text-lg">{t("title")}</CardTitle>
             </CardHeader>
             <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

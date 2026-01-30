@@ -130,6 +130,8 @@
     "StockDetail": {
         "technical_analysis": "Technical Analysis",
         "value_analysis": "Value Analysis",
+        "company_info": "Company Info",
+        "fund_info": "Fund Info",
         "set_alert": "Set Alert",
         "error_loading_data": "Error loading data",
         "key_statistics": "Key Statistics",
@@ -161,7 +163,8 @@
         "symbol": "Symbol",
         "name": "Name",
         "weight": "Weight",
-        "sector_weightings": "Sector Weightings"
+        "sector_weightings": "Sector Weightings",
+        "analyst_rating_disclaimer": "Analyst ratings are for reference only and do not constitute investment advice"
     },
     "Alerts": {
         "set_alert_for": "Set Alert for {symbol}",
@@ -180,6 +183,7 @@
         "value_score": "Value Score",
         "expand": "Show Details",
         "collapse": "Hide Details",
+        "incomplete_hint": "Please complete the highlighted items",
         "fair_value": "Fair Value",
         "fair_value_desc": "Estimated intrinsic value based on selected valuation model",
         "current_price": "Current Price",

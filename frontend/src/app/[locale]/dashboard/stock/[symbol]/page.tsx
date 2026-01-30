@@ -15,7 +15,13 @@ import {
     useIndicatorVisibility,
     STORAGE_KEY_PERIOD
 } from "@/components/dashboard/technical-chart";
-import { ValueAnalysis } from "@/components/dashboard/value-analysis";
+import {
+    ValueAnalysis,
+    CompanyHeader,
+    KeyStatistics,
+    AnalystRatingCard,
+    InstitutionalHoldersTable
+} from "@/components/dashboard/value-analysis";
 import { ValueScores } from "@/components/dashboard/value-scores";
 import { NewsCard } from "@/components/dashboard/news-card";
 import { SetAlertDialog } from "@/components/dashboard/set-alert-dialog";
@@ -106,6 +112,7 @@ export default function StockDetailPage({ params }: StockDetailPageProps) {
 
     const priceChange = priceData?.change_percent ?? 0;
     const isPositive = priceChange >= 0;
+    const isEtf = fundamentalData?.is_etf ?? false;
 
     return (
         <Tabs defaultValue="technical" className="max-w-7xl mx-auto space-y-6">
@@ -131,7 +138,16 @@ export default function StockDetailPage({ params }: StockDetailPageProps) {
                 <div className="flex items-center gap-4">
                     <TabsList>
                         <TabsTrigger value="technical">{t("technical_analysis")}</TabsTrigger>
-                        <TabsTrigger value="fundamental">{t("value_analysis")}</TabsTrigger>
+                        {isEtf ? (
+                            // ETF: 2 tabs - Technical, Fund Info
+                            <TabsTrigger value="fundamental">{t("fund_info")}</TabsTrigger>
+                        ) : (
+                            // Stock: 3 tabs - Technical, Value Analysis, Company Info
+                            <>
+                                <TabsTrigger value="analysis">{t("value_analysis")}</TabsTrigger>
+                                <TabsTrigger value="company">{t("company_info")}</TabsTrigger>
+                            </>
+                        )}
                     </TabsList>
                     <Button onClick={() => setIsAlertDialogOpen(true)}>
                         <Bell className="h-4 w-4 mr-2" />
@@ -221,27 +237,79 @@ export default function StockDetailPage({ params }: StockDetailPageProps) {
                 ) : null}
             </TabsContent>
 
-            <TabsContent value="fundamental">
-                {fundamentalLoading ? (
-                    <Card>
-                        <CardContent className="flex items-center justify-center min-h-[400px]">
-                            <Loader2 className="h-8 w-8 animate-spin" />
-                        </CardContent>
-                    </Card>
-                ) : fundamentalError ? (
-                    <Card>
-                        <CardContent className="flex items-center justify-center min-h-[400px] text-muted-foreground">
-                            {t("error_loading_data")}
-                        </CardContent>
-                    </Card>
-                ) : fundamentalData ? (
-                    <div className="space-y-6">
-                        <ValueAnalysis data={fundamentalData} />
-                        {!fundamentalData.is_etf && <ValueScores symbol={upperSymbol} />}
-                        <NewsCard symbol={upperSymbol} />
-                    </div>
-                ) : null}
-            </TabsContent>
+            {/* ETF: Fund Info Tab (single fundamental tab) */}
+            {isEtf && (
+                <TabsContent value="fundamental">
+                    {fundamentalLoading ? (
+                        <Card>
+                            <CardContent className="flex items-center justify-center min-h-[400px]">
+                                <Loader2 className="h-8 w-8 animate-spin" />
+                            </CardContent>
+                        </Card>
+                    ) : fundamentalError ? (
+                        <Card>
+                            <CardContent className="flex items-center justify-center min-h-[400px] text-muted-foreground">
+                                {t("error_loading_data")}
+                            </CardContent>
+                        </Card>
+                    ) : fundamentalData ? (
+                        <div className="space-y-6">
+                            <ValueAnalysis data={fundamentalData} />
+                            <NewsCard symbol={upperSymbol} />
+                        </div>
+                    ) : null}
+                </TabsContent>
+            )}
+
+            {/* Stock: Value Analysis Tab (Stats, Ratings, Valuation Trends, Scores) */}
+            {!isEtf && (
+                <TabsContent value="analysis">
+                    {fundamentalLoading ? (
+                        <Card>
+                            <CardContent className="flex items-center justify-center min-h-[400px]">
+                                <Loader2 className="h-8 w-8 animate-spin" />
+                            </CardContent>
+                        </Card>
+                    ) : fundamentalError ? (
+                        <Card>
+                            <CardContent className="flex items-center justify-center min-h-[400px] text-muted-foreground">
+                                {t("error_loading_data")}
+                            </CardContent>
+                        </Card>
+                    ) : fundamentalData ? (
+                        <div className="space-y-6">
+                            <KeyStatistics data={fundamentalData} />
+                            <AnalystRatingCard data={fundamentalData} />
+                            <ValueScores symbol={upperSymbol} />
+                        </div>
+                    ) : null}
+                </TabsContent>
+            )}
+
+            {/* Stock: Company Info Tab (Description, Holders, News) */}
+            {!isEtf && (
+                <TabsContent value="company">
+                    {fundamentalLoading ? (
+                        <Card>
+                            <CardContent className="flex items-center justify-center min-h-[400px]">
+                                <Loader2 className="h-8 w-8 animate-spin" />
+                            </CardContent>
+                        </Card>
+                    ) : fundamentalError ? (
+                        <Card>
+                            <CardContent className="flex items-center justify-center min-h-[400px] text-muted-foreground">
+                                {t("error_loading_data")}
+                            </CardContent>
+                        </Card>
+                    ) : fundamentalData ? (
+                        <div className="space-y-6">
+                            <CompanyHeader data={fundamentalData} />
+                            <InstitutionalHoldersTable data={fundamentalData} />
+                            <NewsCard symbol={upperSymbol} />
+                        </div>
+                    ) : null}
+                </TabsContent>
+            )}
 
             {/* Alert Dialog */}
             <SetAlertDialog
@@ -253,5 +321,6 @@ export default function StockDetailPage({ params }: StockDetailPageProps) {
         </Tabs>
     );
 }
+
 
 
