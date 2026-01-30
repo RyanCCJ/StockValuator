@@ -1,6 +1,7 @@
 """Market data service with yfinance and Redis caching."""
 
 import json
+from datetime import UTC
 from decimal import Decimal
 
 import yfinance as yf
@@ -169,7 +170,7 @@ async def get_fundamental_data(symbol: str, db=None) -> dict | None:
     Returns:
         Dictionary with fundamental data including is_etf flag
     """
-    from datetime import datetime, timezone
+    from datetime import datetime
     
     symbol = symbol.upper()
     cache_key = f"fundamental:{symbol}"
@@ -207,7 +208,7 @@ async def get_fundamental_data(symbol: str, db=None) -> dict | None:
             "fifty_two_week_low": info.get("fiftyTwoWeekLow"),
             "trailing_pe": info.get("trailingPE"),
             "dividend_yield": info.get("dividendYield"),
-            "last_updated": datetime.now(timezone.utc).isoformat(),
+            "last_updated": datetime.now(UTC).isoformat(),
         }
         
         if is_etf:
@@ -302,4 +303,155 @@ async def get_fundamental_data(symbol: str, db=None) -> dict | None:
     except Exception:
         return None
 
+
+
+async def get_sp500_yield(db=None) -> float:
+    """
+    Get S&P 500 dividend yield using SPY as proxy.
+    Uses Redis caching with 24-hour TTL.
+    
+    Returns:
+        Float value of yield (e.g. 0.015 for 1.5%)
+    """
+    cache_key = "sp500_yield"
+    
+    # Try cache first
+    cached = await cache_get(cache_key)
+    if cached:
+        return float(cached)
+        
+    try:
+        ticker = yf.Ticker("SPY")
+        info = ticker.info
+        
+        # Prefer dividendYield (percent) but fallback to trailingAnnualDividendYield (decimal)
+        div_yield = info.get("dividendYield")
+        
+        if div_yield is not None:
+            # yfinance returns percent for dividendYield (e.g., 1.07 for 1.07%)
+            yield_val = float(div_yield) / 100
+        else:
+            # trailingAnnualDividendYield is usually a decimal (e.g., 0.008)
+            trailing = info.get("trailingAnnualDividendYield")
+            if trailing is not None:
+                yield_val = float(trailing)
+            else:
+                # Fallback to historical average if data unavailable
+                yield_val = 0.015
+                
+        # Cache for 24 hours (86400 seconds)
+        await cache_set(cache_key, str(yield_val), ttl=86400)
+        
+        return yield_val
+        
+    except Exception:
+        # Fallback on error
+        return 0.015
+
+
+async def get_company_news_and_research(symbol: str) -> dict | None:
+    """
+    Get news and research reports for a stock symbol.
+    Uses Redis caching with 1-hour TTL.
+
+    Uses yfinance.Search with include_research=True to fetch both
+    news articles and research reports.
+
+    Args:
+        symbol: Stock ticker symbol
+
+    Returns:
+        Dictionary with 'news' and 'research' lists, or None on error
+    """
+    from datetime import datetime
+
+    symbol = symbol.upper()
+    cache_key = f"news:{symbol}"
+
+    # Try cache first
+    cached = await cache_get(cache_key)
+    if cached:
+        return json.loads(cached)
+
+    try:
+        # Use yfinance.Search with include_research=True
+        search = yf.Search(symbol, include_research=True)
+
+        news_items = []
+        research_items = []
+
+        # Process news
+        if hasattr(search, "news") and search.news:
+            for item in search.news:
+                published_at = None
+                if "providerPublishTime" in item:
+                    try:
+                        published_at = datetime.fromtimestamp(
+                            item["providerPublishTime"], tz=UTC
+                        ).isoformat()
+                    except (ValueError, TypeError, OSError):
+                        pass
+
+                news_items.append({
+                    "title": item.get("title", ""),
+                    "publisher": item.get("publisher", ""),
+                    "link": item.get("link", ""),
+                    "published_at": published_at,
+                    "news_type": item.get("type"),
+                    "thumbnail": _extract_thumbnail(item),
+                })
+
+        # Process research reports
+        # Note: Research has different fields: reportHeadline, provider, reportDate (ms), id
+        if hasattr(search, "research") and search.research:
+            for item in search.research:
+                published_at = None
+                # Research uses 'reportDate' (milliseconds) instead of 'providerPublishTime'
+                report_date = item.get("reportDate")
+                if report_date:
+                    try:
+                        # reportDate is in milliseconds
+                        published_at = datetime.fromtimestamp(
+                            report_date / 1000, tz=UTC
+                        ).isoformat()
+                    except (ValueError, TypeError, OSError):
+                        pass
+
+                # Construct Yahoo Finance research link from id
+                report_id = item.get("id", "")
+                link = f"https://finance.yahoo.com/research/reports/{report_id}" if report_id else ""
+
+                research_items.append({
+                    "title": item.get("reportHeadline", ""),
+                    "publisher": item.get("provider", ""),
+                    "link": link,
+                    "published_at": published_at,
+                })
+
+        result = {
+            "symbol": symbol,
+            "news": news_items,
+            "research": research_items,
+        }
+
+        # Cache for 1 hour (3600 seconds)
+        await cache_set(cache_key, json.dumps(result), ttl=3600)
+
+        return result
+
+    except Exception:
+        return None
+
+
+def _extract_thumbnail(item: dict) -> str | None:
+    """Extract thumbnail URL from news item if available."""
+    try:
+        thumbnail = item.get("thumbnail")
+        if thumbnail and isinstance(thumbnail, dict):
+            resolutions = thumbnail.get("resolutions", [])
+            if resolutions and len(resolutions) > 0:
+                return resolutions[0].get("url")
+        return None
+    except Exception:
+        return None
 

@@ -10,7 +10,8 @@ WORKDIR /app
 COPY pyproject.toml uv.lock README.md ./
 
 # Install dependencies
-RUN uv sync --frozen --no-dev
+RUN uv sync --frozen --no-dev && \
+    uv run playwright install --with-deps chromium
 
 # Copy application code
 COPY src ./src
