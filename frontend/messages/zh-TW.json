@@ -1,6 +1,7 @@
 {
     "Sidebar": {
         "dashboard": "儀表板",
+        "market_cycle": "市場週期",
         "watchlist": "關注列表",
         "assets": "資產",
         "trades": "交易",
@@ -262,5 +263,29 @@
         "title": "新聞與研究",
         "news": "新聞",
         "research": "研究報告"
+    },
+    "MarketCycle": {
+        "title": "市場週期",
+        "subtitle": "市場階段分析的宏觀指標",
+        "loading": "分析市場中...",
+        "error": "無法載入市場週期資料",
+        "refresh": "重新整理",
+        "last_updated": "最後更新",
+        "score": "分數",
+        "current_phase": "目前階段",
+        "phase_prefix": "階段",
+        "risk_level": "風險等級",
+        "phase_accumulation": "築底",
+        "phase_markup": "上升",
+        "phase_distribution": "派發",
+        "phase_markdown": "下跌",
+        "market_pulse": "市場波動",
+        "indicators": "關鍵指標",
+        "indicator_trend": "趨勢",
+        "indicator_valuation": "估值",
+        "indicator_recession": "衰退風險",
+        "indicator_fear": "恐慌指數",
+        "indicator_breadth": "廣度",
+        "historical_charts": "歷史趨勢"
     }
 }

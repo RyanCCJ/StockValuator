@@ -671,3 +671,48 @@ export async function getAIPrompt(
     }
     return response.json();
 }
+
+// Market Cycle API
+interface IndicatorStatus {
+    name: string;
+    value: number | null;
+    status: string;
+    description: string;
+}
+
+interface MarketPulseItem {
+    symbol: string;
+    name: string;
+    price: number | null;
+    change_percent: number | null;
+}
+
+interface MarketCycleStatusResponse {
+    snapshot_date: string;
+    last_updated: string;
+    phase: string;
+    phase_number: number;
+    risk_level: string;
+    total_score: number;
+    market_pulse: MarketPulseItem[];
+    indicators: IndicatorStatus[];
+    sp500_price: number | null;
+    sp500_ma200: number | null;
+    shiller_pe: number | null;
+    yield_spread: number | null;
+    vix: number | null;
+}
+
+export async function getMarketCycleStatus(): Promise<MarketCycleStatusResponse> {
+    const response = await fetch(`${API_BASE}/market-cycle/status`);
+    if (!response.ok) {
+        throw new Error("Failed to fetch market cycle status");
+    }
+    return response.json();
+}
+
+export type {
+    MarketCycleStatusResponse,
+    MarketPulseItem,
+    IndicatorStatus,
+};

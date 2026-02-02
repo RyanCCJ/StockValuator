@@ -40,11 +40,14 @@ build/
 dist/
 
 # SDD artifacts
+docs/plans/
 .agent/
+.claude/
 .gemini/
 .opencode/
 .specify/
 specs/
 openspec/
 AGENTS.md
+CLAUDE.md
 Gemini.md

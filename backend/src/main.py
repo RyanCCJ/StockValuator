@@ -19,6 +19,7 @@ from src.api.routes import (
     alerts,
     email,
     analysis,
+    market_cycle,
 )
 
 settings = get_settings()
@@ -78,3 +79,4 @@ app.include_router(user.router)
 app.include_router(alerts.router)
 app.include_router(email.router)
 app.include_router(analysis.router)
+app.include_router(market_cycle.router)

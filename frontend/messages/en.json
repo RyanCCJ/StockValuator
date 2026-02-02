@@ -1,6 +1,7 @@
 {
     "Sidebar": {
         "dashboard": "Dashboard",
+        "market_cycle": "Market Cycle",
         "watchlist": "Watchlist",
         "assets": "Assets",
         "trades": "Trades",
@@ -262,5 +263,29 @@
         "title": "News & Research",
         "news": "News",
         "research": "Research"
+    },
+    "MarketCycle": {
+        "title": "Market Cycle",
+        "subtitle": "Macro indicators for market phase analysis",
+        "loading": "Analyzing Market...",
+        "error": "Failed to load market cycle data",
+        "refresh": "Refresh",
+        "last_updated": "Last updated",
+        "score": "Score",
+        "current_phase": "Current Phase",
+        "phase_prefix": "Phase",
+        "risk_level": "Risk Level",
+        "phase_accumulation": "Accumulation",
+        "phase_markup": "Mark-Up",
+        "phase_distribution": "Distribution",
+        "phase_markdown": "Mark-Down",
+        "market_pulse": "Market Pulse",
+        "indicators": "Key Indicators",
+        "indicator_trend": "Trend",
+        "indicator_valuation": "Valuation",
+        "indicator_recession": "Recession",
+        "indicator_fear": "Fear",
+        "indicator_breadth": "Breadth",
+        "historical_charts": "Historical Trends"
     }
 }

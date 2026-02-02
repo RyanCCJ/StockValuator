@@ -145,6 +145,15 @@ export function Sidebar({ accessToken }: SidebarProps) {
                     {t('dashboard')}
                 </Link>
                 <Link
+                    href="/dashboard/market-cycle"
+                    className={`flex items-center gap-2 px-3 py-2 rounded-md ${pathname === "/dashboard/market-cycle"
+                        ? "bg-accent text-accent-foreground"
+                        : "hover:bg-accent"
+                        }`}
+                >
+                    {t('market_cycle')}
+                </Link>
+                <Link
                     href="/dashboard/trades"
                     className={`flex items-center gap-2 px-3 py-2 rounded-md ${pathname === "/dashboard/trades"
                         ? "bg-accent text-accent-foreground"
