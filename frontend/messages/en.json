@@ -1,6 +1,7 @@
 {
     "Sidebar": {
         "dashboard": "Dashboard",
+        "market": "Market",
         "market_cycle": "Market Cycle",
         "watchlist": "Watchlist",
         "assets": "Assets",
@@ -265,7 +266,8 @@
         "research": "Research"
     },
     "MarketCycle": {
-        "title": "Market Cycle",
+        "title": "Market",
+        "card_title": "Market Cycle",
         "subtitle": "Macro indicators for market phase analysis",
         "loading": "Analyzing Market...",
         "error": "Failed to load market cycle data",
@@ -280,12 +282,25 @@
         "phase_distribution": "Distribution",
         "phase_markdown": "Mark-Down",
         "market_pulse": "Market Pulse",
+        "market_pulse_desc": "Major indices performance",
+        "cycle_desc": "Current position in the Wyckoff market cycle",
         "indicators": "Key Indicators",
         "indicator_trend": "Trend",
         "indicator_valuation": "Valuation",
         "indicator_recession": "Recession",
         "indicator_fear": "Fear",
         "indicator_breadth": "Breadth",
-        "historical_charts": "Historical Trends"
+        "historical_charts": "Historical Trends",
+        "time": "Time",
+        "price_risk": "Price/Risk",
+        "market_sentiment": "Market Sentiment",
+        "overbought": "Overbought",
+        "oversold": "Oversold",
+        "trend": "Trend",
+        "bullish": "Bullish",
+        "bearish": "Bearish",
+        "risk_low": "Low",
+        "risk_medium": "Medium",
+        "risk_high": "High"
     }
 }

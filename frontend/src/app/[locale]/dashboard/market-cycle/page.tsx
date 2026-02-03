@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader2, RefreshCw, TrendingUp, TrendingDown } from "lucide-react";
-import { PhaseGauge } from "@/components/market-cycle/phase-gauge";
+import { MarketCycleWave } from "@/components/market-cycle/market-cycle-wave";
 import { IndicatorCards } from "@/components/market-cycle/indicator-card";
 import { HistoricalCharts } from "@/components/market-cycle/historical-charts";
 import {
@@ -113,28 +113,13 @@ export default function MarketCyclePage() {
             </div>
 
             {/* Main Content Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Phase Gauge */}
-                <Card className="lg:col-span-1">
-                    <CardHeader>
-                        <CardTitle>{t("current_phase")}</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <PhaseGauge
-                            phase={data.phase}
-                            phaseNumber={data.phase_number}
-                            riskLevel={data.risk_level}
-                            totalScore={data.total_score}
-                        />
-                    </CardContent>
-                </Card>
-
-                {/* Market Pulse */}
-                <Card className="lg:col-span-2">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Market Pulse - 50% */}
+                <Card>
                     <CardHeader>
                         <CardTitle>{t("market_pulse")}</CardTitle>
                         <CardDescription>
-                            {t("subtitle")}
+                            {t("market_pulse_desc")}
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -143,6 +128,26 @@ export default function MarketCyclePage() {
                                 <MarketPulseCard key={item.symbol} item={item} />
                             ))}
                         </div>
+                    </CardContent>
+                </Card>
+
+                {/* Market Cycle Wave - 50% */}
+                <Card>
+                    <CardHeader>
+                        <CardTitle>{t("card_title")}</CardTitle>
+                        <CardDescription>
+                            {t("cycle_desc")}
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <MarketCycleWave
+                            totalScore={data.total_score}
+                            sp500Price={data.sp500_price}
+                            sp500Ma200={data.sp500_ma200}
+                            phase={data.phase}
+                            phaseNumber={data.phase_number}
+                            riskLevel={data.risk_level}
+                        />
                     </CardContent>
                 </Card>
             </div>
