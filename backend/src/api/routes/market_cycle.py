@@ -1,13 +1,25 @@
 """Market Cycle API routes."""
 
-from fastapi import APIRouter, Depends
+from datetime import date, timedelta
+
+import yfinance as yf
+from fastapi import APIRouter, Depends, Query
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.deps import get_db
+from src.models.market_cycle import MarketCycleSnapshot
 from src.schemas.market_cycle import (
     MarketCycleStatusResponse,
     MarketPulseItem,
     IndicatorStatus,
+    MarketPulseHistoricalResponse,
+    IndexHistoricalSeries,
+    IndexHistoricalDataPoint,
+    HistoricalTrendsResponse,
+    HistoricalTrendData,
+    OHLCDataPoint,
+    LineDataPoint,
 )
 from src.services.market_cycle_service import MarketCycleService
 
@@ -108,8 +120,9 @@ async def get_market_cycle_status(
         IndicatorStatus(
             name="Trend",
             value=snapshot.sp500_price,
+            secondary_value=snapshot.sp500_ma200,
             status=_get_trend_status(snapshot.sp500_price, snapshot.sp500_ma200),
-            description=f"S&P 500 vs 200-day MA ({snapshot.sp500_ma200:.0f})" if snapshot.sp500_ma200 else "S&P 500 trend",
+            description="S&P 500 Price / MA200",
         ),
         IndicatorStatus(
             name="Valuation",
@@ -132,8 +145,9 @@ async def get_market_cycle_status(
         IndicatorStatus(
             name="Breadth",
             value=snapshot.breadth_ma5,
+            secondary_value=snapshot.breadth_ma20,
             status=_get_breadth_status(snapshot.breadth_ma5, snapshot.breadth_ma20),
-            description="Nasdaq Net Issues Trend",
+            description="NYSE AD MA5 / MA20",
         ),
     ]
 
@@ -152,3 +166,124 @@ async def get_market_cycle_status(
         yield_spread=snapshot.yield_spread,
         vix=snapshot.vix,
     )
+
+
+@router.get("/pulse-history", response_model=MarketPulseHistoricalResponse)
+async def get_market_pulse_history(
+    period: str = Query("1y", description="Time period: 1y, 6mo, 3mo, 1mo"),
+):
+    """
+    Get historical data for Market Pulse indices.
+
+    Returns daily close prices for major indices over the specified period.
+    Used for the Market Pulse performance comparison chart.
+    """
+    indices = [
+        ("^DJI", "Dow Jones"),
+        ("^IXIC", "Nasdaq"),
+        ("^GSPC", "S&P 500"),
+        ("^RUT", "Russell 2000"),
+    ]
+
+    result_indices: list[IndexHistoricalSeries] = []
+
+    for symbol, name in indices:
+        try:
+            ticker = yf.Ticker(symbol)
+            hist = ticker.history(period=period)
+
+            if hist.empty:
+                result_indices.append(
+                    IndexHistoricalSeries(symbol=symbol, name=name, data=[])
+                )
+                continue
+
+            data_points = [
+                IndexHistoricalDataPoint(
+                    date=idx.strftime("%Y-%m-%d"),
+                    close=float(row["Close"]),
+                )
+                for idx, row in hist.iterrows()
+            ]
+
+            result_indices.append(
+                IndexHistoricalSeries(symbol=symbol, name=name, data=data_points)
+            )
+        except Exception:
+            result_indices.append(
+                IndexHistoricalSeries(symbol=symbol, name=name, data=[])
+            )
+
+    return MarketPulseHistoricalResponse(indices=result_indices)
+
+
+@router.get("/trends-history", response_model=HistoricalTrendsResponse)
+async def get_historical_trends(
+    period: str = Query("1y", description="Time period: 2y, 1y, 6mo, 3mo"),
+):
+    """
+    Get historical data for Historical Trends charts.
+
+    Returns:
+    - S&P 500: OHLC candlestick data (1 year)
+    - VIX: OHLC candlestick data (1 year)
+    """
+    trends: list[HistoricalTrendData] = []
+
+    # Fetch OHLC data for S&P 500
+    try:
+        sp500_ticker = yf.Ticker("^GSPC")
+        sp500_hist = sp500_ticker.history(period=period)
+
+        if not sp500_hist.empty:
+            ohlc_data = [
+                OHLCDataPoint(
+                    time=idx.strftime("%Y-%m-%d"),
+                    open=float(row["Open"]),
+                    high=float(row["High"]),
+                    low=float(row["Low"]),
+                    close=float(row["Close"]),
+                )
+                for idx, row in sp500_hist.iterrows()
+            ]
+            trends.append(
+                HistoricalTrendData(
+                    indicator="sp500",
+                    chart_type="candlestick",
+                    ohlc_data=ohlc_data,
+                )
+            )
+    except Exception:
+        trends.append(
+            HistoricalTrendData(indicator="sp500", chart_type="candlestick", ohlc_data=[])
+        )
+
+    # Fetch OHLC data for VIX
+    try:
+        vix_ticker = yf.Ticker("^VIX")
+        vix_hist = vix_ticker.history(period=period)
+
+        if not vix_hist.empty:
+            ohlc_data = [
+                OHLCDataPoint(
+                    time=idx.strftime("%Y-%m-%d"),
+                    open=float(row["Open"]),
+                    high=float(row["High"]),
+                    low=float(row["Low"]),
+                    close=float(row["Close"]),
+                )
+                for idx, row in vix_hist.iterrows()
+            ]
+            trends.append(
+                HistoricalTrendData(
+                    indicator="vix",
+                    chart_type="candlestick",
+                    ohlc_data=ohlc_data,
+                )
+            )
+    except Exception:
+        trends.append(
+            HistoricalTrendData(indicator="vix", chart_type="candlestick", ohlc_data=[])
+        )
+
+    return HistoricalTrendsResponse(trends=trends)

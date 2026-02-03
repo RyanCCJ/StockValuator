@@ -175,7 +175,7 @@ export function HistoricalCharts({
                                                 backgroundColor: "hsl(var(--background))",
                                                 border: "1px solid hsl(var(--border))",
                                             }}
-                                            formatter={(value: number) => [`${value.toFixed(2)}%`, "Spread"]}
+                                            formatter={(value) => value !== undefined ? [`${Number(value).toFixed(2)}%`, "Spread"] : ["N/A", "Spread"]}
                                         />
                                         <ReferenceLine
                                             y={0}
@@ -275,7 +275,7 @@ export function HistoricalCharts({
                                                 backgroundColor: "hsl(var(--background))",
                                                 border: "1px solid hsl(var(--border))",
                                             }}
-                                            formatter={(value: number) => [value.toLocaleString(), "S&P 500"]}
+                                            formatter={(value) => value !== undefined ? [Number(value).toLocaleString(), "S&P 500"] : ["N/A", "S&P 500"]}
                                         />
                                         {sp500Ma200 && (
                                             <ReferenceLine

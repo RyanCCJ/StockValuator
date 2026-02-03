@@ -47,13 +47,6 @@ const RISK_COLORS = {
     Unknown: "text-gray-500",
 };
 
-const PHASE_BG_COLORS = {
-    1: "bg-green-100 dark:bg-green-900/30",
-    2: "bg-blue-100 dark:bg-blue-900/30",
-    3: "bg-yellow-100 dark:bg-yellow-900/30",
-    4: "bg-red-100 dark:bg-red-900/30",
-};
-
 /**
  * Get Y coordinate on the wave for a given t (0-1)
  * Wave starts at valley (Accumulation), rises to peak (Distribution), then falls
@@ -162,7 +155,8 @@ export function MarketCycleWave({
     totalScore,
     sp500Price,
     sp500Ma200,
-    phase,
+    // phase is kept for API compatibility but not displayed
+    phase: _phase,
     phaseNumber,
     riskLevel,
 }: MarketCycleWaveProps) {
@@ -174,15 +168,6 @@ export function MarketCycleWave({
 
     const isOverbought = phaseNumber === 3 && totalScore >= 75;
     const isOversold = phaseNumber === 1 && totalScore <= 25;
-
-    // Translate phase name based on phase number
-    const phaseNames: Record<number, string> = {
-        1: t("phase_accumulation"),
-        2: t("phase_markup"),
-        3: t("phase_distribution"),
-        4: t("phase_markdown"),
-    };
-    const translatedPhase = phaseNames[phaseNumber] || phase;
 
     // Translate risk level
     const riskLevelMap: Record<string, string> = {
@@ -327,7 +312,7 @@ export function MarketCycleWave({
                 <circle
                     cx={position.x}
                     cy={position.y}
-                    r={12}
+                    r={8}
                     className={
                         position.phase === "accumulation"
                             ? "fill-green-500"
@@ -338,36 +323,36 @@ export function MarketCycleWave({
                                     : "fill-red-500"
                     }
                     stroke="white"
-                    strokeWidth={3}
+                    strokeWidth={2}
                     style={{ filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.4))" }}
                 />
 
                 {/* Trend direction arrow */}
                 {isBullish ? (
                     <path
-                        d={`M ${position.x - 6} ${position.y - 20} L ${position.x} ${position.y - 30} L ${position.x + 6} ${position.y - 20}`}
+                        d={`M ${position.x - 5} ${position.y - 14} L ${position.x} ${position.y - 22} L ${position.x + 5} ${position.y - 14}`}
                         fill="none"
                         stroke="#22c55e"
-                        strokeWidth={3}
+                        strokeWidth={2}
                         strokeLinecap="round"
                         strokeLinejoin="round"
                     />
                 ) : (
                     <path
-                        d={`M ${position.x - 6} ${position.y + 20} L ${position.x} ${position.y + 30} L ${position.x + 6} ${position.y + 20}`}
+                        d={`M ${position.x - 5} ${position.y + 14} L ${position.x} ${position.y + 22} L ${position.x + 5} ${position.y + 14}`}
                         fill="none"
                         stroke="#ef4444"
-                        strokeWidth={3}
+                        strokeWidth={2}
                         strokeLinecap="round"
                         strokeLinejoin="round"
                     />
                 )}
 
-                {/* Overbought/Oversold label - LARGER */}
+                {/* Overbought/Oversold label */}
                 {isOverbought && (
                     <text
                         x={position.x}
-                        y={position.y - 42}
+                        y={position.y - 30}
                         textAnchor="middle"
                         className="fill-yellow-400 text-[14px] font-bold"
                     >
@@ -377,7 +362,7 @@ export function MarketCycleWave({
                 {isOversold && (
                     <text
                         x={position.x}
-                        y={position.y + 45}
+                        y={position.y + 35}
                         textAnchor="middle"
                         className="fill-green-400 text-[14px] font-bold"
                     >
@@ -386,35 +371,28 @@ export function MarketCycleWave({
                 )}
             </svg>
 
-            {/* Score display */}
-            <div className="mt-3 text-center">
-                <div className="text-4xl font-bold">{totalScore}</div>
-                <div className="text-sm text-muted-foreground">{t("score")}</div>
-            </div>
+            {/* Metrics Summary - 3 blocks */}
+            <div className="mt-4 flex flex-row gap-3 w-full">
+                {/* Score */}
+                <div className="flex-1 p-3 rounded-lg bg-muted/50 text-center flex flex-col justify-center">
+                    <div className="text-xs text-muted-foreground">{t("score")}</div>
+                    <div className="text-xl font-bold">{totalScore}</div>
+                </div>
 
-            {/* Current Phase Info */}
-            <div
-                className={`mt-4 rounded-lg px-6 py-4 text-center w-full ${PHASE_BG_COLORS[phaseNumber as keyof typeof PHASE_BG_COLORS] ||
-                    "bg-gray-100 dark:bg-gray-800"
-                    }`}
-            >
-                <div className="text-lg font-bold mb-2">
-                    {t("phase_prefix")} {phaseNumber}: {translatedPhase}
-                </div>
-                <div className="flex items-center justify-center gap-2">
-                    <span className="text-sm text-muted-foreground">{t("risk_level")}:</span>
-                    <span
-                        className={`font-semibold ${RISK_COLORS[riskLevel as keyof typeof RISK_COLORS] || RISK_COLORS.Unknown
-                            }`}
-                    >
+                {/* Risk Level */}
+                <div className="flex-1 p-3 rounded-lg bg-muted/50 text-center flex flex-col justify-center">
+                    <div className="text-xs text-muted-foreground">{t("risk_level")}</div>
+                    <div className={`text-xl font-semibold ${RISK_COLORS[riskLevel as keyof typeof RISK_COLORS] || RISK_COLORS.Unknown}`}>
                         {translatedRiskLevel}
-                    </span>
+                    </div>
                 </div>
-                <div className="mt-2 flex items-center justify-center gap-2 text-sm">
-                    <span className="text-muted-foreground">{t("trend")}:</span>
-                    <span className={isBullish ? "text-green-600 dark:text-green-400 font-semibold" : "text-red-600 dark:text-red-400 font-semibold"}>
+
+                {/* Trend */}
+                <div className="flex-1 p-3 rounded-lg bg-muted/50 text-center flex flex-col justify-center">
+                    <div className="text-xs text-muted-foreground">{t("trend")}</div>
+                    <div className={`text-xl font-semibold ${isBullish ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
                         {isBullish ? t("bullish") : t("bearish")}
-                    </span>
+                    </div>
                 </div>
             </div>
         </div>

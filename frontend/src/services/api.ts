@@ -676,6 +676,7 @@ export async function getAIPrompt(
 interface IndicatorStatus {
     name: string;
     value: number | null;
+    secondary_value?: number | null;
     status: string;
     description: string;
 }
@@ -715,4 +716,75 @@ export type {
     MarketCycleStatusResponse,
     MarketPulseItem,
     IndicatorStatus,
+};
+
+// Market Pulse Historical Data API
+interface IndexHistoricalDataPoint {
+    date: string;
+    close: number;
+}
+
+interface IndexHistoricalSeries {
+    symbol: string;
+    name: string;
+    data: IndexHistoricalDataPoint[];
+}
+
+interface MarketPulseHistoricalResponse {
+    indices: IndexHistoricalSeries[];
+}
+
+export async function getMarketPulseHistory(
+    period: "1y" | "6mo" | "3mo" | "1mo" = "1y"
+): Promise<MarketPulseHistoricalResponse> {
+    const response = await fetch(`${API_BASE}/market-cycle/pulse-history?period=${period}`);
+    if (!response.ok) {
+        throw new Error("Failed to fetch market pulse history");
+    }
+    return response.json();
+}
+
+// Historical Trends API
+interface OHLCDataPoint {
+    time: string;
+    open: number;
+    high: number;
+    low: number;
+    close: number;
+}
+
+interface LineDataPoint {
+    time: string;
+    value: number;
+}
+
+interface HistoricalTrendData {
+    indicator: string;
+    chart_type: "candlestick" | "line";
+    ohlc_data: OHLCDataPoint[] | null;
+    line_data: LineDataPoint[] | null;
+}
+
+interface HistoricalTrendsResponse {
+    trends: HistoricalTrendData[];
+}
+
+export async function getHistoricalTrends(
+    period: "2y" | "1y" | "6mo" | "3mo" = "1y"
+): Promise<HistoricalTrendsResponse> {
+    const response = await fetch(`${API_BASE}/market-cycle/trends-history?period=${period}`);
+    if (!response.ok) {
+        throw new Error("Failed to fetch historical trends");
+    }
+    return response.json();
+}
+
+export type {
+    IndexHistoricalDataPoint,
+    IndexHistoricalSeries,
+    MarketPulseHistoricalResponse,
+    OHLCDataPoint,
+    LineDataPoint,
+    HistoricalTrendData,
+    HistoricalTrendsResponse,
 };

@@ -39,7 +39,7 @@ pnpm-debug.log*
 build/
 dist/
 
-# SDD artifacts
+# Agent artifacts
 docs/plans/
 .agent/
 .claude/
