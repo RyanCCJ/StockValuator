@@ -15,7 +15,7 @@ from src.schemas.value_analysis import (
     ValueScoreResponse,
 )
 from src.services.financial_data_service import get_financial_data
-from src.core.cache import cache_get, cache_set
+from src.core.cache import cache_get, cache_set, acquire_scrape_lock, release_scrape_lock
 from src.services.value_analysis import (
     calculate_confidence_score,
     calculate_dividend_score,
@@ -31,8 +31,6 @@ from src.services.market_data import get_stock_price, get_fundamental_data, get_
 
 router = APIRouter(prefix="/analysis", tags=["analysis"])
 
-_prefetch_tasks: dict[str, bool] = {}
-
 
 def _determine_data_status(metrics) -> DataStatusEnum:
     has_history = bool(metrics.eps_history or metrics.roe_history or metrics.dividend_history)
@@ -46,26 +44,44 @@ def _determine_data_status(metrics) -> DataStatusEnum:
         return DataStatusEnum.INSUFFICIENT
 
 
+async def _is_prefetching(symbol: str) -> bool:
+    """Check if a prefetch is in progress using Redis lock."""
+    from src.core.cache import get_redis
+    client = await get_redis()
+    key = f"lock:prefetch:{symbol.upper()}"
+    exists = await client.exists(key)
+    return bool(exists)
+
+
 @router.get("/{symbol}/status")
 async def get_analysis_status(symbol: str, db: AsyncSession = Depends(get_db)):
     symbol = symbol.upper()
     cache_key = f"financial_data:{symbol}"
     cached = await cache_get(cache_key)
+    is_fetching = await _is_prefetching(symbol)
 
     return {
         "symbol": symbol,
         "cached": cached is not None,
-        "fetching": _prefetch_tasks.get(symbol, False),
+        "fetching": is_fetching,
     }
 
 
 async def _background_prefetch(symbol: str, db: AsyncSession):
+    """Background prefetch with distributed locking."""
     symbol = symbol.upper()
-    _prefetch_tasks[symbol] = True
+    lock_key = f"prefetch:{symbol}"
+
+    # Try to acquire the lock
+    acquired = await acquire_scrape_lock(lock_key, ttl=120)  # 2 minute timeout
+    if not acquired:
+        # Another request is already prefetching
+        return
+
     try:
         await get_financial_data(symbol, db)
     finally:
-        _prefetch_tasks[symbol] = False
+        await release_scrape_lock(lock_key)
 
 
 @router.post("/{symbol}/prefetch")
@@ -81,7 +97,7 @@ async def prefetch_analysis(
     if cached:
         return {"symbol": symbol, "status": "cached"}
 
-    if _prefetch_tasks.get(symbol):
+    if await _is_prefetching(symbol):
         return {"symbol": symbol, "status": "fetching"}
 
     background_tasks.add_task(_background_prefetch, symbol, db)
@@ -115,14 +131,14 @@ async def get_value_analysis(
 
     confidence = calculate_confidence_score(metrics)
     dividend = calculate_dividend_score(metrics, metrics.beta)
-    
+
     # Extract Key Statistics for Value Score comparison
     trailing_pe = fundamental.get("trailing_pe") if fundamental else None
     # Note: yfinance returns dividend_yield as percentage (e.g., 0.4 = 40%)
     # Historical data uses decimal form (e.g., 0.004 = 0.4%), so divide by 100
     dividend_yield_raw = fundamental.get("dividend_yield") if fundamental else None
     dividend_yield_stat = dividend_yield_raw / 100 if dividend_yield_raw else None
-    
+
     value = calculate_value_score(
         metrics,
         current_price,
@@ -221,9 +237,6 @@ async def get_fair_value(
         is_undervalued=result.is_undervalued,
         explanation=result.explanation,
     )
-
-
-
 
 
 @router.get("/{symbol}/ai-prompt/{score_type}")

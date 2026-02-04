@@ -1,11 +1,7 @@
-"""NASDAQ Advance-Decline scraper from eoddata.com using Playwright."""
+"""NASDAQ Advance-Decline scraper from eoddata.com using browser pool."""
 
-import re
-from datetime import datetime, timezone
-
-from playwright.async_api import async_playwright
-
-from src.services.scrapers.base import BaseScraper, ScraperError
+from src.core.browser_pool import BrowserContextManager
+from src.services.scrapers.base import BaseScraper
 
 
 class BreadthScraper(BaseScraper):
@@ -25,16 +21,8 @@ class BreadthScraper(BaseScraper):
         return await self._do_fetch()
 
     async def _do_fetch(self) -> dict[str, float | None]:
-        """Execute the scraping logic using Playwright."""
-        async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True)
-            context = await browser.new_context(
-                user_agent=(
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                    "Chrome/120.0.0.0 Safari/537.36"
-                )
-            )
+        """Execute the scraping logic using browser pool."""
+        async with BrowserContextManager() as (browser, context):
             page = await context.new_page()
 
             try:
@@ -70,8 +58,7 @@ class BreadthScraper(BaseScraper):
                 return {"ma5": ma5, "ma20": ma20}
 
             finally:
-                await context.close()
-                await browser.close()
+                await page.close()
 
     async def get_breadth_data(self, force_refresh: bool = False) -> dict[str, float | None]:
         """

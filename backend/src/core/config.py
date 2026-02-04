@@ -25,6 +25,19 @@ class Settings(BaseSettings):
     # Redis
     redis_url: str = "redis://localhost:6379/0"
     cache_ttl_seconds: int = 300  # 5 minutes for stock prices
+    redis_max_connections: int = 50  # Connection pool size
+
+    # PostgreSQL Connection Pool
+    db_pool_size: int = 20
+    db_max_overflow: int = 30
+    db_pool_timeout: int = 30
+    db_pool_recycle: int = 3600
+
+    # Browser Pool
+    max_browsers: int = 3
+
+    # yfinance Executor
+    yfinance_max_workers: int = 10
 
     # JWT
     secret_key: str = "development-secret-key-change-in-production"

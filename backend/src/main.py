@@ -1,11 +1,16 @@
 """StockValuator API - Main Application Entry Point."""
 
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.core.config import get_settings
+from src.core.cache import close_redis_pool
+from src.core.database import dispose_engine
+from src.core.yfinance_async import shutdown_yf_executor
+from src.core.browser_pool import close_browser_pool
 from src.api.routes import (
     auth,
     trades,
@@ -20,17 +25,26 @@ from src.api.routes import (
     email,
     analysis,
     market_cycle,
+    health,
 )
 
+logger = logging.getLogger(__name__)
 settings = get_settings()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan handler."""
-    # Startup: Could initialize database connections, etc.
+    # Startup
+    logger.info("Starting application...")
     yield
     # Shutdown: Clean up resources
+    logger.info("Shutting down application...")
+    shutdown_yf_executor()
+    await close_browser_pool()
+    await close_redis_pool()
+    await dispose_engine()
+    logger.info("Application shutdown complete")
 
 
 app = FastAPI(
@@ -80,3 +94,4 @@ app.include_router(alerts.router)
 app.include_router(email.router)
 app.include_router(analysis.router)
 app.include_router(market_cycle.router)
+app.include_router(health.router)

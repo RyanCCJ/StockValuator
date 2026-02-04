@@ -87,7 +87,7 @@ export function HistoricalTrendsSection({ className }: HistoricalTrendsSectionPr
                     {/* S&P 500 with MA20, MA50, MA200 */}
                     <div className="p-4 rounded-lg bg-muted/30">
                         <InteractiveTrendChart
-                            title="S&P 500"
+                            title="S&P 500 Index"
                             chartType="candlestick"
                             ohlcData={sp500Data?.ohlc_data}
                             showMA={true}

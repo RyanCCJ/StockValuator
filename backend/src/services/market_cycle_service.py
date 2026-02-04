@@ -1,6 +1,7 @@
 """Market Cycle Service for calculating market phase and risk."""
 
-from datetime import date, datetime, timezone
+import asyncio
+from datetime import date
 from typing import Any
 
 import yfinance as yf
@@ -8,9 +9,103 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.yfinance_async import run_in_yf_executor
 from src.models.market_cycle import MarketCycleSnapshot
 from src.services.scrapers.shiller_pe import ShillerPEScraper
 from src.services.scrapers.breadth import BreadthScraper
+
+
+def _sync_fetch_trend_data() -> dict[str, float | None]:
+    """Synchronous helper to fetch S&P 500 price and 200-day MA."""
+    try:
+        ticker = yf.Ticker("^GSPC")
+        hist = ticker.history(period="1y")
+
+        if hist.empty:
+            return {"sp500_price": None, "sp500_ma200": None}
+
+        current_price = float(hist["Close"].iloc[-1])
+        ma200 = float(hist["Close"].rolling(window=200).mean().iloc[-1])
+
+        return {"sp500_price": current_price, "sp500_ma200": ma200}
+    except Exception:
+        return {"sp500_price": None, "sp500_ma200": None}
+
+
+def _sync_fetch_yield_data() -> dict[str, float | None]:
+    """Synchronous helper to fetch Treasury yields and calculate spread."""
+    try:
+        tnx = yf.Ticker("^TNX")  # 10-Year Treasury
+        irx = yf.Ticker("^IRX")  # 3-Month Treasury
+
+        tnx_hist = tnx.history(period="5d")
+        irx_hist = irx.history(period="5d")
+
+        if tnx_hist.empty or irx_hist.empty:
+            return {"treasury_10y": None, "treasury_3m": None, "yield_spread": None}
+
+        treasury_10y = float(tnx_hist["Close"].iloc[-1])
+        treasury_3m = float(irx_hist["Close"].iloc[-1])
+        yield_spread = treasury_10y - treasury_3m
+
+        return {
+            "treasury_10y": treasury_10y,
+            "treasury_3m": treasury_3m,
+            "yield_spread": yield_spread,
+        }
+    except Exception:
+        return {"treasury_10y": None, "treasury_3m": None, "yield_spread": None}
+
+
+def _sync_fetch_vix() -> float | None:
+    """Synchronous helper to fetch VIX index."""
+    try:
+        ticker = yf.Ticker("^VIX")
+        hist = ticker.history(period="5d")
+
+        if hist.empty:
+            return None
+
+        return float(hist["Close"].iloc[-1])
+    except Exception:
+        return None
+
+
+def _sync_fetch_market_pulse() -> dict[str, float | None]:
+    """Synchronous helper to fetch market pulse data for major indices."""
+    indices = {
+        "^DJI": ("djia", "djia"),
+        "^IXIC": ("nasdaq", "nasdaq"),
+        "^GSPC": ("sp500", "sp500"),
+        "^RUT": ("russell", "russell"),
+    }
+
+    result: dict[str, float | None] = {}
+
+    for symbol, (price_key, change_key) in indices.items():
+        try:
+            ticker = yf.Ticker(symbol)
+            hist = ticker.history(period="5d")
+
+            if hist.empty:
+                if price_key != "sp500":
+                    result[f"{price_key}_price"] = None
+                result[f"{change_key}_change_percent"] = None
+                continue
+
+            current_price = float(hist["Close"].iloc[-1])
+            prev_close = float(hist["Close"].iloc[-2]) if len(hist) > 1 else current_price
+            change_percent = ((current_price - prev_close) / prev_close) * 100 if prev_close else 0
+
+            if price_key != "sp500":  # sp500_price already captured in trend data
+                result[f"{price_key}_price"] = current_price
+            result[f"{change_key}_change_percent"] = change_percent
+        except Exception:
+            if price_key != "sp500":
+                result[f"{price_key}_price"] = None
+            result[f"{change_key}_change_percent"] = None
+
+    return result
 
 
 class MarketCycleService:
@@ -45,13 +140,22 @@ class MarketCycleService:
         """
         today = date.today()
 
-        # Fetch all indicators
-        trend_data = await self._fetch_trend_data()
-        shiller_pe = await self._fetch_shiller_pe()
-        yield_data = await self._fetch_yield_data()
-        vix = await self._fetch_vix()
-        breadth_data = await self._fetch_breadth_data()
-        market_pulse = await self._fetch_market_pulse()
+        # Fetch all indicators concurrently
+        (
+            trend_data,
+            shiller_pe,
+            yield_data,
+            vix,
+            breadth_data,
+            market_pulse,
+        ) = await asyncio.gather(
+            self._fetch_trend_data(),
+            self._fetch_shiller_pe(),
+            self._fetch_yield_data(),
+            self._fetch_vix(),
+            self._fetch_breadth_data(),
+            self._fetch_market_pulse(),
+        )
 
         # Calculate phase and score
         phase_info = self.calculate_phase_and_score(
@@ -261,20 +365,8 @@ class MarketCycleService:
         return await self.refresh_data(db)
 
     async def _fetch_trend_data(self) -> dict[str, float | None]:
-        """Fetch S&P 500 price and 200-day MA."""
-        try:
-            ticker = yf.Ticker("^GSPC")
-            hist = ticker.history(period="1y")
-
-            if hist.empty:
-                return {"sp500_price": None, "sp500_ma200": None}
-
-            current_price = float(hist["Close"].iloc[-1])
-            ma200 = float(hist["Close"].rolling(window=200).mean().iloc[-1])
-
-            return {"sp500_price": current_price, "sp500_ma200": ma200}
-        except Exception:
-            return {"sp500_price": None, "sp500_ma200": None}
+        """Fetch S&P 500 price and 200-day MA (non-blocking)."""
+        return await run_in_yf_executor(_sync_fetch_trend_data)
 
     async def _fetch_shiller_pe(self) -> float | None:
         """Fetch Shiller PE ratio via scraper."""
@@ -284,41 +376,12 @@ class MarketCycleService:
             return None
 
     async def _fetch_yield_data(self) -> dict[str, float | None]:
-        """Fetch Treasury yields and calculate spread."""
-        try:
-            tnx = yf.Ticker("^TNX")  # 10-Year Treasury
-            irx = yf.Ticker("^IRX")  # 3-Month Treasury
-
-            tnx_hist = tnx.history(period="5d")
-            irx_hist = irx.history(period="5d")
-
-            if tnx_hist.empty or irx_hist.empty:
-                return {"treasury_10y": None, "treasury_3m": None, "yield_spread": None}
-
-            treasury_10y = float(tnx_hist["Close"].iloc[-1])
-            treasury_3m = float(irx_hist["Close"].iloc[-1])
-            yield_spread = treasury_10y - treasury_3m
-
-            return {
-                "treasury_10y": treasury_10y,
-                "treasury_3m": treasury_3m,
-                "yield_spread": yield_spread,
-            }
-        except Exception:
-            return {"treasury_10y": None, "treasury_3m": None, "yield_spread": None}
+        """Fetch Treasury yields and calculate spread (non-blocking)."""
+        return await run_in_yf_executor(_sync_fetch_yield_data)
 
     async def _fetch_vix(self) -> float | None:
-        """Fetch VIX index."""
-        try:
-            ticker = yf.Ticker("^VIX")
-            hist = ticker.history(period="5d")
-
-            if hist.empty:
-                return None
-
-            return float(hist["Close"].iloc[-1])
-        except Exception:
-            return None
+        """Fetch VIX index (non-blocking)."""
+        return await run_in_yf_executor(_sync_fetch_vix)
 
     async def _fetch_breadth_data(self) -> dict[str, float | None]:
         """Fetch NASDAQ Advance-Decline MA values via scraper."""
@@ -332,36 +395,5 @@ class MarketCycleService:
             return {"breadth_ma5": None, "breadth_ma20": None}
 
     async def _fetch_market_pulse(self) -> dict[str, float | None]:
-        """Fetch market pulse data for major indices."""
-        indices = {
-            "^DJI": ("djia", "djia"),
-            "^IXIC": ("nasdaq", "nasdaq"),
-            "^GSPC": ("sp500", "sp500"),
-            "^RUT": ("russell", "russell"),
-        }
-
-        result: dict[str, float | None] = {}
-
-        for symbol, (price_key, change_key) in indices.items():
-            try:
-                ticker = yf.Ticker(symbol)
-                hist = ticker.history(period="5d")
-
-                if hist.empty:
-                    result[f"{price_key}_price"] = None
-                    result[f"{change_key}_change_percent"] = None
-                    continue
-
-                current_price = float(hist["Close"].iloc[-1])
-                prev_close = float(hist["Close"].iloc[-2]) if len(hist) > 1 else current_price
-                change_percent = ((current_price - prev_close) / prev_close) * 100 if prev_close else 0
-
-                if price_key != "sp500":  # sp500_price already captured in trend data
-                    result[f"{price_key}_price"] = current_price
-                result[f"{change_key}_change_percent"] = change_percent
-            except Exception:
-                if price_key != "sp500":
-                    result[f"{price_key}_price"] = None
-                result[f"{change_key}_change_percent"] = None
-
-        return result
+        """Fetch market pulse data for major indices (non-blocking)."""
+        return await run_in_yf_executor(_sync_fetch_market_pulse)

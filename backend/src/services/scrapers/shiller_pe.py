@@ -1,10 +1,8 @@
-"""Shiller PE Ratio scraper using Playwright."""
+"""Shiller PE Ratio scraper using browser pool."""
 
 import re
-from datetime import datetime, timezone
 
-from playwright.async_api import async_playwright
-
+from src.core.browser_pool import BrowserContextManager
 from src.services.scrapers.base import BaseScraper, ScraperError
 
 
@@ -59,16 +57,8 @@ class ShillerPEScraper(BaseScraper):
         return await self._do_fetch()
 
     async def _do_fetch(self) -> float:
-        """Execute the scraping logic using Playwright."""
-        async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True)
-            context = await browser.new_context(
-                user_agent=(
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                    "Chrome/120.0.0.0 Safari/537.36"
-                )
-            )
+        """Execute the scraping logic using browser pool."""
+        async with BrowserContextManager() as (browser, context):
             page = await context.new_page()
 
             try:
@@ -110,8 +100,7 @@ class ShillerPEScraper(BaseScraper):
                 return parsed_value
 
             finally:
-                await context.close()
-                await browser.close()
+                await page.close()
 
     async def get_shiller_pe(self, force_refresh: bool = False) -> float:
         """

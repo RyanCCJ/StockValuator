@@ -264,7 +264,7 @@ export function InteractiveTrendChart({
                 const series = seriesRef.current as ISeriesApi<"Candlestick">;
                 series.createPriceLine({
                     price: 15,
-                    color: "#22c55e",
+                    color: "#f59e0b",
                     lineWidth: 1,
                     lineStyle: 2,
                     axisLabelVisible: true,
@@ -337,7 +337,7 @@ export function InteractiveTrendChart({
     }, [ohlcData, ma20Lookup, ma50Lookup, ma200Lookup]);
 
     const hasData = (chartType === "candlestick" && ohlcData && ohlcData.length > 0) ||
-                   (chartType === "line" && lineData && lineData.length > 0);
+        (chartType === "line" && lineData && lineData.length > 0);
 
     return (
         <div className="flex flex-col h-full relative">
