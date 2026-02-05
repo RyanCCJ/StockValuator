@@ -9,9 +9,10 @@ const API_BASE = "/api";
 interface TradeData {
     symbol: string;
     date: string;
-    type: "buy" | "sell";
+    action: string;  // e.g., "Buy", "Sell", "Stock Split"
     price: number;
     quantity: number;
+    amount?: number | null;  // Original amount with sign (from CSV)
     fees?: number;
     currency?: string;
     notes?: string;
@@ -20,6 +21,7 @@ interface TradeData {
 interface Trade extends TradeData {
     id: string;
     user_id: string;
+    amount: number | null;  // Original amount with sign
     created_at: string;
     notes?: string;
 }
@@ -44,8 +46,12 @@ async function fetchWithAuth(
     });
 }
 
-export async function getTrades(accessToken: string): Promise<TradeListResponse> {
-    const response = await fetchWithAuth("/trades", accessToken);
+export async function getTrades(
+    accessToken: string,
+    skip: number = 0,
+    limit: number = 50
+): Promise<TradeListResponse> {
+    const response = await fetchWithAuth(`/trades?skip=${skip}&limit=${limit}`, accessToken);
     if (!response.ok) {
         throw new Error("Failed to fetch trades");
     }
@@ -220,7 +226,7 @@ interface CashTransaction {
     id: string;
     user_id: string;
     date: string;
-    type: "deposit" | "withdraw";
+    action: string;  // e.g., "Deposit", "Withdraw", "Dividend", "Tax"
     amount: number;
     currency: string;
     notes?: string;
@@ -229,7 +235,7 @@ interface CashTransaction {
 
 interface CashTransactionData {
     date: string;
-    type: "deposit" | "withdraw";
+    action: string;  // e.g., "Deposit", "Withdraw", "Dividend", "Tax"
     amount: number;
     currency?: string;
     notes?: string;
@@ -241,8 +247,12 @@ interface CashTransactionListResponse {
     balance: number;
 }
 
-export async function getCashTransactions(accessToken: string): Promise<CashTransactionListResponse> {
-    const response = await fetchWithAuth("/cash", accessToken);
+export async function getCashTransactions(
+    accessToken: string,
+    skip: number = 0,
+    limit: number = 50
+): Promise<CashTransactionListResponse> {
+    const response = await fetchWithAuth(`/cash?skip=${skip}&limit=${limit}`, accessToken);
     if (!response.ok) {
         throw new Error("Failed to fetch cash transactions");
     }
@@ -341,6 +351,34 @@ export async function importCash(accessToken: string, file: File): Promise<Impor
     });
     if (!response.ok) {
         throw new Error("Failed to import cash transactions");
+    }
+    return response.json();
+}
+
+// Unified Brokerage Importer API
+export interface ImporterResult {
+    trades_created: number;
+    cash_transactions_created: number;
+    duplicates_skipped: number;
+    rows_skipped: number;
+    warnings: string[];
+    errors: Array<{ error: string; transaction?: Record<string, unknown> }>;
+}
+
+export async function uploadBrokerageFile(accessToken: string, file: File): Promise<ImporterResult> {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const response = await fetch(`${API_BASE}/importer/upload`, {
+        method: "POST",
+        headers: {
+            Authorization: `Bearer ${accessToken}`,
+        },
+        body: formData,
+    });
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || "Failed to import brokerage file");
     }
     return response.json();
 }
@@ -554,7 +592,7 @@ export type {
     PriceAlert, AlertListResponse, CreateAlertData,
     ValueAnalysisResponse, ScoreBreakdown, ConfidenceScore, DividendScore,
     ValueScoreType, FairValueEstimate, AIScoreResponse, YearValue,
-    NewsItem, ResearchItem, NewsAndResearchResponse
+    NewsItem, ResearchItem, NewsAndResearchResponse,
 };
 
 interface ScoreBreakdown {

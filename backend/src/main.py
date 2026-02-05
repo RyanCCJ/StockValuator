@@ -20,6 +20,7 @@ from src.api.routes import (
     cash,
     export,
     import_,
+    importer,
     user,
     alerts,
     email,
@@ -89,6 +90,7 @@ app.include_router(portfolio.router)
 app.include_router(cash.router)
 app.include_router(export.router)
 app.include_router(import_.router)
+app.include_router(importer.router)
 app.include_router(user.router)
 app.include_router(alerts.router)
 app.include_router(email.router)

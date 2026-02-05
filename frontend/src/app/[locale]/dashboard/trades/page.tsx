@@ -1,22 +1,15 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { ColumnDef } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
-import { ArrowUpDown, ArrowUp, ArrowDown, Download, Upload } from "lucide-react";
+import { Download, Upload } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from "@/components/ui/table";
 import {
     Dialog,
     DialogContent,
@@ -31,8 +24,11 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { getTrades, createTrade, deleteTrade, updateTrade, getPortfolioSummary, exportTrades, importTrades, Trade, TradeData, PortfolioSummary, ImportResult } from "@/services/api";
+import { getTrades, createTrade, deleteTrade, updateTrade, getPortfolioSummary, exportTrades, Trade, TradeData, PortfolioSummary } from "@/services/api";
 import { PortfolioBalanceCard } from "@/components/dashboard/portfolio-balance-card";
+import { TransactionImportDialog } from "@/components/portfolio/transaction-import-dialog";
+import { DataTable, DataTableSearch } from "@/components/ui/data-table";
+import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import { useCurrency } from "@/context/currency-context";
 import { Loader2 } from "lucide-react";
 
@@ -48,7 +44,7 @@ export default function TradesPage() {
     const [formData, setFormData] = useState<TradeData>({
         symbol: "",
         date: new Date().toISOString().split("T")[0],
-        type: "buy",
+        action: "Buy",
         price: 0,
         quantity: 0,
         fees: 0,
@@ -58,19 +54,17 @@ export default function TradesPage() {
     const [selectedTrade, setSelectedTrade] = useState<Trade | null>(null);
     const [isNotesDialogOpen, setIsNotesDialogOpen] = useState(false);
     const [editingNotes, setEditingNotes] = useState("");
-    const [sortConfig, setSortConfig] = useState<{
-        key: keyof Trade | "total_value" | null;
-        direction: "asc" | "desc";
-    }>({ key: "date", direction: "desc" });
-    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
+    const [searchQuery, setSearchQuery] = useState("");
 
     const accessToken = (session as { accessToken?: string })?.accessToken;
 
     const fetchTrades = useCallback(async () => {
         if (!accessToken) return;
         try {
+            // Fetch all trades for client-side sorting/filtering
             const [tradesData, portfolioData] = await Promise.all([
-                getTrades(accessToken),
+                getTrades(accessToken, 0, 10000),
                 getPortfolioSummary(accessToken),
             ]);
             setTrades(tradesData.trades);
@@ -87,6 +81,125 @@ export default function TradesPage() {
             fetchTrades();
         }
     }, [accessToken, fetchTrades]);
+
+    // Define handleDelete before columns useMemo
+    const handleDelete = useCallback(async (tradeId: string) => {
+        if (!accessToken) return;
+        if (!confirm("Are you sure you want to delete this trade?")) return;
+
+        try {
+            await deleteTrade(accessToken, tradeId);
+            fetchTrades();
+        } catch (error) {
+            console.error("Failed to delete trade:", error);
+        }
+    }, [accessToken, fetchTrades]);
+
+    // Define columns for DataTable
+    const columns: ColumnDef<Trade>[] = useMemo(() => [
+        {
+            accessorKey: "date",
+            header: ({ column }) => (
+                <DataTableColumnHeader column={column} title={t("date")} className="w-full justify-center" />
+            ),
+            cell: ({ row }) => <div className="text-center">{new Date(row.getValue("date")).toLocaleDateString()}</div>,
+            sortingFn: "datetime",
+        },
+        {
+            accessorKey: "symbol",
+            header: ({ column }) => (
+                <DataTableColumnHeader column={column} title={t("symbol")} className="w-full justify-center" />
+            ),
+            cell: ({ row }) => <div className="text-center font-medium">{row.getValue("symbol")}</div>,
+        },
+        {
+            accessorKey: "action",
+            header: ({ column }) => (
+                <DataTableColumnHeader column={column} title={t("action")} className="w-full justify-center" />
+            ),
+            cell: ({ row }) => {
+                // Color based on amount sign: negative = red (cash outflow), positive = green (cash inflow)
+                // If amount is null, no color
+                const amount = row.original.amount;
+                const isNegative = amount != null && amount < 0;
+                const isPositive = amount != null && amount > 0;
+                return (
+                    <div className="text-center">
+                        <span className={
+                            isNegative ? "text-red-600 dark:text-red-400" :
+                            isPositive ? "text-green-600 dark:text-green-400" :
+                            ""
+                        }>
+                            {row.getValue("action")}
+                        </span>
+                    </div>
+                );
+            },
+        },
+        {
+            accessorKey: "price",
+            header: ({ column }) => (
+                <DataTableColumnHeader column={column} title={t("price")} className="w-full justify-center" />
+            ),
+            cell: ({ row }) => <div className="text-center">{formatMoney(Number(row.getValue("price")))}</div>,
+        },
+        {
+            accessorKey: "quantity",
+            header: ({ column }) => (
+                <DataTableColumnHeader column={column} title={t("quantity")} className="w-full justify-center" />
+            ),
+            cell: ({ row }) => <div className="text-center">{Number(row.getValue("quantity"))}</div>,
+        },
+        {
+            id: "amount",
+            accessorFn: (row) => {
+                // Use original amount if available, otherwise calculate from price * quantity
+                if (row.amount != null) {
+                    return row.amount;
+                }
+                return Number(row.price) * Number(row.quantity);
+            },
+            header: ({ column }) => (
+                <DataTableColumnHeader column={column} title={t("amount")} className="w-full justify-center" />
+            ),
+            cell: ({ row }) => {
+                const originalAmount = row.original.amount;
+                const total = Number(row.original.price) * Number(row.original.quantity);
+                // Use original amount if available, otherwise just show total without color
+                const displayAmount = originalAmount != null ? originalAmount : total;
+                const isNegative = originalAmount != null && originalAmount < 0;
+                const isPositive = originalAmount != null && originalAmount > 0;
+                return (
+                    <div className={`text-center ${
+                        isNegative ? "text-red-600 dark:text-red-400" :
+                        isPositive ? "text-green-600 dark:text-green-400" :
+                        ""
+                    }`}>
+                        {formatMoney(displayAmount)}
+                    </div>
+                );
+            },
+        },
+        {
+            id: "actions",
+            header: () => <div className="text-center w-full"> </div>,
+            cell: ({ row }) => (
+                <div className="text-center">
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            handleDelete(row.original.id);
+                        }}
+                    >
+                        {t("delete")}
+                    </Button>
+                </div>
+            ),
+        },
+    ], [t, formatMoney, handleDelete]);
 
     if (status === "loading" || isLoading) {
         return (
@@ -113,7 +226,7 @@ export default function TradesPage() {
             setFormData({
                 symbol: "",
                 date: new Date().toISOString().split("T")[0],
-                type: "buy",
+                action: "Buy",
                 price: 0,
                 quantity: 0,
                 fees: 0,
@@ -126,19 +239,7 @@ export default function TradesPage() {
         }
     };
 
-    const handleDelete = async (tradeId: string) => {
-        if (!accessToken) return;
-        if (!confirm("Are you sure you want to delete this trade?")) return;
-
-        try {
-            await deleteTrade(accessToken, tradeId);
-            fetchTrades();
-        } catch (error) {
-            console.error("Failed to delete trade:", error);
-        }
-    };
-
-    const handleViewNotes = (trade: Trade) => {
+    const handleRowClick = (trade: Trade) => {
         setSelectedTrade(trade);
         setEditingNotes(trade.notes || "");
         setIsNotesDialogOpen(true);
@@ -155,35 +256,6 @@ export default function TradesPage() {
             console.error("Failed to update notes:", error);
         }
     };
-    const handleSort = (key: keyof Trade | "total_value") => {
-        setSortConfig((current) => ({
-            key,
-            direction:
-                current.key === key && current.direction === "asc" ? "desc" : "asc",
-        }));
-    };
-
-    const sortedTrades = [...trades].sort((a, b) => {
-        if (!sortConfig.key) return 0;
-
-        let aValue: any = a[sortConfig.key as keyof Trade];
-        let bValue: any = b[sortConfig.key as keyof Trade];
-
-        if (sortConfig.key === "total_value") {
-            aValue = Number(a.price) * Number(a.quantity);
-            bValue = Number(b.price) * Number(b.quantity);
-        }
-
-        if (aValue === undefined || bValue === undefined) return 0;
-
-        if (aValue < bValue) {
-            return sortConfig.direction === "asc" ? -1 : 1;
-        }
-        if (aValue > bValue) {
-            return sortConfig.direction === "asc" ? 1 : -1;
-        }
-        return 0;
-    });
 
     const handleExport = async (format: "csv" | "xlsx") => {
         if (!accessToken) return;
@@ -202,32 +274,12 @@ export default function TradesPage() {
         }
     };
 
-    const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (!accessToken || !e.target.files?.[0]) return;
-        try {
-            const result = await importTrades(accessToken, e.target.files[0]);
-            if (result.success_count > 0) {
-                alert(t('import_success', { count: result.success_count }));
-                fetchTrades();
-            }
-            if (result.error_count > 0) {
-                alert(t('import_error', { count: result.error_count }));
-            }
-        } catch (error) {
-            console.error("Import failed:", error);
-        } finally {
-            if (fileInputRef.current) {
-                fileInputRef.current.value = "";
-            }
-        }
-    };
-
     return (
         <div className="max-w-7xl mx-auto space-y-6">
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-3xl font-bold">{t('title')}</h1>
-                    <p className="text-muted-foreground">{t('subtitle')}</p>
+                    <h1 className="text-3xl font-bold">{t("title")}</h1>
+                    <p className="text-muted-foreground">{t("subtitle")}</p>
                 </div>
                 <div className="flex items-center gap-2">
                     {/* Export Dropdown */}
@@ -235,47 +287,38 @@ export default function TradesPage() {
                         <DropdownMenuTrigger asChild>
                             <Button variant="outline">
                                 <Download className="h-4 w-4 mr-2" />
-                                {t('export')}
+                                {t("export")}
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent>
                             <DropdownMenuItem onClick={() => handleExport("csv")}>
-                                {tCommon('csv')}
+                                {tCommon("csv")}
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleExport("xlsx")}>
-                                {tCommon('xlsx')}
+                                {tCommon("xlsx")}
                             </DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>
 
-                    {/* Import Button */}
-                    <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
+                    {/* Import Button - uses unified importer */}
+                    <Button variant="outline" onClick={() => setIsImportDialogOpen(true)}>
                         <Upload className="h-4 w-4 mr-2" />
-                        {t('import')}
+                        {t("import")}
                     </Button>
-                    <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept=".csv,.xlsx"
-                        className="hidden"
-                        onChange={handleImport}
-                    />
 
                     <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                         <DialogTrigger asChild>
-                            <Button>{t('add_trade')}</Button>
+                            <Button>{t("add_trade")}</Button>
                         </DialogTrigger>
                         <DialogContent>
                             <DialogHeader>
-                                <DialogTitle>{t('add_new_trade')}</DialogTitle>
-                                <DialogDescription>
-                                    {t('dialog_description')}
-                                </DialogDescription>
+                                <DialogTitle>{t("add_new_trade")}</DialogTitle>
+                                <DialogDescription>{t("dialog_description")}</DialogDescription>
                             </DialogHeader>
                             <form onSubmit={handleSubmit} className="space-y-4">
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="space-y-2">
-                                        <Label htmlFor="symbol">{t('symbol')}</Label>
+                                        <Label htmlFor="symbol">{t("symbol")}</Label>
                                         <Input
                                             id="symbol"
                                             placeholder="AAPL"
@@ -287,22 +330,23 @@ export default function TradesPage() {
                                         />
                                     </div>
                                     <div className="space-y-2">
-                                        <Label htmlFor="type">{t('type')}</Label>
+                                        <Label htmlFor="action">{t("action")}</Label>
                                         <select
-                                            id="type"
+                                            id="action"
                                             className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs"
-                                            value={formData.type}
+                                            value={formData.action}
                                             onChange={(e) =>
-                                                setFormData({ ...formData, type: e.target.value as "buy" | "sell" })
+                                                setFormData({ ...formData, action: e.target.value })
                                             }
                                         >
-                                            <option value="buy">{t('buy')}</option>
-                                            <option value="sell">{t('sell')}</option>
+                                            <option value="Buy">{t("buy")}</option>
+                                            <option value="Sell">{t("sell")}</option>
+                                            <option value="Reinvest">{t("reinvest")}</option>
                                         </select>
                                     </div>
                                 </div>
                                 <div className="space-y-2">
-                                    <Label htmlFor="date">{t('date')}</Label>
+                                    <Label htmlFor="date">{t("date")}</Label>
                                     <Input
                                         id="date"
                                         type="date"
@@ -313,7 +357,7 @@ export default function TradesPage() {
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="space-y-2">
-                                        <Label htmlFor="price">{t('price')}</Label>
+                                        <Label htmlFor="price">{t("price")}</Label>
                                         <Input
                                             id="price"
                                             type="number"
@@ -328,7 +372,7 @@ export default function TradesPage() {
                                         />
                                     </div>
                                     <div className="space-y-2">
-                                        <Label htmlFor="quantity">{t('quantity')}</Label>
+                                        <Label htmlFor="quantity">{t("quantity")}</Label>
                                         <Input
                                             id="quantity"
                                             type="number"
@@ -345,7 +389,7 @@ export default function TradesPage() {
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="space-y-2">
-                                        <Label htmlFor="fees">{t('fees')}</Label>
+                                        <Label htmlFor="fees">{t("fees")}</Label>
                                         <Input
                                             id="fees"
                                             type="number"
@@ -359,7 +403,7 @@ export default function TradesPage() {
                                         />
                                     </div>
                                     <div className="space-y-2">
-                                        <Label htmlFor="currency">{t('currency')}</Label>
+                                        <Label htmlFor="currency">{t("currency")}</Label>
                                         <Input
                                             id="currency"
                                             placeholder="USD"
@@ -371,19 +415,17 @@ export default function TradesPage() {
                                     </div>
                                 </div>
                                 <div className="space-y-2">
-                                    <Label htmlFor="notes">{t('notes')}</Label>
+                                    <Label htmlFor="notes">{t("notes")}</Label>
                                     <textarea
                                         id="notes"
                                         className="flex min-h-[80px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                                        placeholder={t('notes_placeholder')}
+                                        placeholder={t("notes_placeholder")}
                                         value={formData.notes || ""}
-                                        onChange={(e) =>
-                                            setFormData({ ...formData, notes: e.target.value })
-                                        }
+                                        onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                                     />
                                 </div>
                                 <Button type="submit" className="w-full">
-                                    {t('add_trade')}
+                                    {t("add_trade")}
                                 </Button>
                             </form>
                         </DialogContent>
@@ -395,128 +437,23 @@ export default function TradesPage() {
             <PortfolioBalanceCard portfolio={portfolio} isLoading={isLoading} />
 
             <Card>
-                <CardHeader>
-                    <CardTitle>{t('history_title')}</CardTitle>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+                    <CardTitle>{t("history_title")}</CardTitle>
+                    <DataTableSearch
+                        value={searchQuery}
+                        onChange={setSearchQuery}
+                        placeholder={t("search_placeholder")}
+                    />
                 </CardHeader>
                 <CardContent>
-                    {trades.length === 0 ? (
-                        <div className="text-center py-8 text-muted-foreground">
-                            {t('no_trades')}
-                        </div>
-                    ) : (
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>
-                                        <Button variant="ghost" onClick={() => handleSort("date")}>
-                                            {t('date')}
-                                            {sortConfig.key === "date" ? (
-                                                sortConfig.direction === "asc" ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />
-                                            ) : (
-                                                <ArrowUpDown className="ml-2 h-4 w-4" />
-                                            )}
-                                        </Button>
-                                    </TableHead>
-                                    <TableHead>
-                                        <Button variant="ghost" onClick={() => handleSort("symbol")}>
-                                            {t('symbol')}
-                                            {sortConfig.key === "symbol" ? (
-                                                sortConfig.direction === "asc" ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />
-                                            ) : (
-                                                <ArrowUpDown className="ml-2 h-4 w-4" />
-                                            )}
-                                        </Button>
-                                    </TableHead>
-                                    <TableHead>
-                                        <Button variant="ghost" onClick={() => handleSort("type")}>
-                                            {t('type')}
-                                            {sortConfig.key === "type" ? (
-                                                sortConfig.direction === "asc" ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />
-                                            ) : (
-                                                <ArrowUpDown className="ml-2 h-4 w-4" />
-                                            )}
-                                        </Button>
-                                    </TableHead>
-                                    <TableHead className="text-right">
-                                        <Button variant="ghost" onClick={() => handleSort("price")}>
-                                            {t('price')}
-                                            {sortConfig.key === "price" ? (
-                                                sortConfig.direction === "asc" ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />
-                                            ) : (
-                                                <ArrowUpDown className="ml-2 h-4 w-4" />
-                                            )}
-                                        </Button>
-                                    </TableHead>
-                                    <TableHead className="text-right">
-                                        <Button variant="ghost" onClick={() => handleSort("quantity")}>
-                                            {t('quantity')}
-                                            {sortConfig.key === "quantity" ? (
-                                                sortConfig.direction === "asc" ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />
-                                            ) : (
-                                                <ArrowUpDown className="ml-2 h-4 w-4" />
-                                            )}
-                                        </Button>
-                                    </TableHead>
-                                    <TableHead className="text-right">
-                                        <Button variant="ghost" onClick={() => handleSort("total_value")}>
-                                            {t('total')}
-                                            {sortConfig.key === "total_value" ? (
-                                                sortConfig.direction === "asc" ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />
-                                            ) : (
-                                                <ArrowUpDown className="ml-2 h-4 w-4" />
-                                            )}
-                                        </Button>
-                                    </TableHead>
-                                    <TableHead></TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {sortedTrades.map((trade) => (
-                                    <TableRow
-                                        key={trade.id}
-                                        className="cursor-pointer hover:bg-muted/50"
-                                        onClick={() => handleViewNotes(trade)}
-                                    >
-                                        <TableCell>
-                                            {new Date(trade.date).toLocaleDateString()}
-                                        </TableCell>
-                                        <TableCell className="font-medium">{trade.symbol}</TableCell>
-                                        <TableCell>
-                                            <span
-                                                className={
-                                                    trade.type === "buy"
-                                                        ? "text-green-600 dark:text-green-400"
-                                                        : "text-red-600 dark:text-red-400"
-                                                }
-                                            >
-                                                {t(trade.type)}
-                                            </span>
-                                        </TableCell>
-                                        <TableCell className="text-right">
-                                            {formatMoney(Number(trade.price))}
-                                        </TableCell>
-                                        <TableCell className="text-right">{Number(trade.quantity)}</TableCell>
-                                        <TableCell className="text-right">
-                                            {formatMoney(Number(trade.price) * Number(trade.quantity))}
-                                        </TableCell>
-                                        <TableCell>
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                className="text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    handleDelete(trade.id);
-                                                }}
-                                            >
-                                                {t('delete')}
-                                            </Button>
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    )}
+                    <DataTable
+                        columns={columns}
+                        data={trades}
+                        onRowClick={handleRowClick}
+                        externalSearch={searchQuery}
+                        onExternalSearchChange={setSearchQuery}
+                        centered={true}
+                    />
                 </CardContent>
             </Card>
 
@@ -525,32 +462,38 @@ export default function TradesPage() {
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>
-                            {t('notes_dialog_title', { symbol: selectedTrade?.symbol || '' })} ({t(selectedTrade?.type || 'buy')})
+                            {t("notes_dialog_title", { symbol: selectedTrade?.symbol || "" })} (
+                            {selectedTrade?.action || "Buy"})
                         </DialogTitle>
                         <DialogDescription>
                             {selectedTrade && new Date(selectedTrade.date).toLocaleDateString()} •
-                            {selectedTrade && ` ${formatMoney(Number(selectedTrade.price) * Number(selectedTrade.quantity))}`}
+                            {selectedTrade &&
+                                ` ${formatMoney(Number(selectedTrade.price) * Number(selectedTrade.quantity))}`}
                         </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4">
                         <textarea
                             className="flex min-h-[150px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                            placeholder={t('notes_placeholder')}
+                            placeholder={t("notes_placeholder")}
                             value={editingNotes}
                             onChange={(e) => setEditingNotes(e.target.value)}
                         />
                         <div className="flex gap-2 justify-end">
                             <Button variant="outline" onClick={() => setIsNotesDialogOpen(false)}>
-                                {t('cancel')}
+                                {t("cancel")}
                             </Button>
-                            <Button onClick={handleSaveNotes}>
-                                {t('save_notes')}
-                            </Button>
+                            <Button onClick={handleSaveNotes}>{t("save_notes")}</Button>
                         </div>
                     </div>
                 </DialogContent>
             </Dialog>
+
+            {/* Brokerage Import Dialog */}
+            <TransactionImportDialog
+                open={isImportDialogOpen}
+                onOpenChange={setIsImportDialogOpen}
+                onSuccess={fetchTrades}
+            />
         </div>
     );
 }
-

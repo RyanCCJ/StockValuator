@@ -3,12 +3,17 @@
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.trade import Trade, TradeType
+from src.models.trade import Trade
 from src.services.market_data import get_stock_prices_batch
 from src.services.cash_service import get_cash_balance
+
+# Actions that are considered "buy" (money out, shares in)
+BUY_ACTIONS = {'buy', 'reinvest'}
+# Actions that are considered "sell" (money in, shares out)
+SELL_ACTIONS = {'sell'}
 
 
 async def get_portfolio_summary(db: AsyncSession, user_id: UUID, base_currency: str = "USD") -> dict:
@@ -43,6 +48,7 @@ async def get_portfolio_summary(db: AsyncSession, user_id: UUID, base_currency: 
         qty = float(trade.quantity)
         price = float(trade.price)
         fees = float(trade.fees)
+        action_lower = trade.action.lower()
 
         if symbol not in holdings:
             holdings[symbol] = {
@@ -52,10 +58,10 @@ async def get_portfolio_summary(db: AsyncSession, user_id: UUID, base_currency: 
                 "realized_pnl": 0,
             }
 
-        if trade.type == TradeType.BUY:
+        if action_lower in BUY_ACTIONS:
             holdings[symbol]["quantity"] += qty
             holdings[symbol]["total_cost"] += (qty * price) + fees
-        else:  # SELL
+        elif action_lower in SELL_ACTIONS:
             if holdings[symbol]["quantity"] > 0:
                 avg_cost = holdings[symbol]["total_cost"] / holdings[symbol]["quantity"]
                 cost_of_sold = avg_cost * qty
@@ -63,6 +69,11 @@ async def get_portfolio_summary(db: AsyncSession, user_id: UUID, base_currency: 
                 holdings[symbol]["realized_pnl"] += proceeds - cost_of_sold
                 holdings[symbol]["quantity"] -= qty
                 holdings[symbol]["total_cost"] -= cost_of_sold
+        # Neutral actions (Stock Split, Merger, etc.) - just adjust quantity, no cost change
+        else:
+            # For stock splits and similar, we add shares but don't change cost basis
+            # The quantity change is already in the trade
+            holdings[symbol]["quantity"] += qty
 
     # Remove positions with zero quantity
     holdings = {k: v for k, v in holdings.items() if v["quantity"] > 0.0001}
@@ -120,10 +131,10 @@ async def get_portfolio_summary(db: AsyncSession, user_id: UUID, base_currency: 
     # Get cash balance
     cash_balance = await get_cash_balance(db, user_id)
     cash_balance_float = float(cash_balance)
-    
+
     # Calculate total portfolio (cash + investments)
     total_portfolio = float(total_value) + cash_balance_float
-    
+
     # Cash ratio as percentage
     cash_ratio = (cash_balance_float / total_portfolio * 100) if total_portfolio > 0 else 0
 

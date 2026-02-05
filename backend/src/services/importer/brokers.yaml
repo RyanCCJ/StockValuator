@@ -1,0 +1,63 @@
+# Broker CSV column mappings
+# Each broker defines which CSV columns map to which transaction fields
+
+brokers:
+  - name: "default"
+    description: "Generic CSV format"
+    columns:
+      date: "Date"
+      symbol: "Symbol"
+      action: "Action"
+      price: "Price"
+      quantity: "Quantity"
+      fees: "Fees"
+      amount: "Amount"
+      notes: "Notes"
+    date_formats:
+      - "%Y-%m-%d"
+      - "%m/%d/%Y"
+      - "%d/%m/%Y"
+
+  - name: "Charles Schwab"
+    description: "Charles Schwab brokerage CSV export"
+    columns:
+      date: "Date"
+      symbol: "Symbol"
+      action: "Action"
+      price: "Price"
+      quantity: "Quantity"
+      fees: "Fees & Comm"
+      amount: "Amount"
+      notes: "Description"
+    date_formats:
+      - "%m/%d/%Y"
+    # Schwab dates may have "as of" suffix, e.g., "02/04/2026 as of 01/31/2026"
+    date_strip_suffix: " as of "
+
+  - name: "TD Ameritrade"
+    description: "TD Ameritrade brokerage CSV export"
+    columns:
+      date: "Date"
+      symbol: "Symbol"
+      action: "Transaction"
+      price: "Price"
+      quantity: "Quantity"
+      fees: "Fees"
+      amount: "Amount"
+      notes: "Description"
+    date_formats:
+      - "%m/%d/%Y"
+
+  - name: "Firstrade"
+    description: "Firstrade brokerage CSV export"
+    columns:
+      date: "TradeDate"
+      symbol: "Symbol"
+      action: "Action"
+      price: "Price"
+      quantity: "Quantity"
+      fees: "Commission"
+      amount: "Amount"
+      notes: "Description"
+    date_formats:
+      - "%m/%d/%Y"

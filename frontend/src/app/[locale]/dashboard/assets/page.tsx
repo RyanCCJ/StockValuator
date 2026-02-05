@@ -1,22 +1,15 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { ColumnDef } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
-import { ArrowUpDown, ArrowUp, ArrowDown, Download, Upload } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Download, Upload } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from "@/components/ui/table";
 import {
     Dialog,
     DialogContent,
@@ -32,6 +25,9 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { PortfolioBalanceCard } from "@/components/dashboard/portfolio-balance-card";
+import { TransactionImportDialog } from "@/components/portfolio/transaction-import-dialog";
+import { DataTable, DataTableSearch } from "@/components/ui/data-table";
+import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
 import {
     getCashTransactions,
     createCashTransaction,
@@ -39,11 +35,9 @@ import {
     updateCashTransaction,
     getPortfolioSummary,
     exportCash,
-    importCash,
     CashTransaction,
     CashTransactionData,
     PortfolioSummary,
-    ImportResult,
 } from "@/services/api";
 import { useCurrency } from "@/context/currency-context";
 import { Loader2 } from "lucide-react";
@@ -60,7 +54,7 @@ export default function AssetsPage() {
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [formData, setFormData] = useState<CashTransactionData>({
         date: new Date().toISOString().split("T")[0],
-        type: "deposit",
+        action: "Deposit",
         amount: 0,
         currency: "USD",
         notes: "",
@@ -68,11 +62,8 @@ export default function AssetsPage() {
     const [selectedTransaction, setSelectedTransaction] = useState<CashTransaction | null>(null);
     const [isNotesDialogOpen, setIsNotesDialogOpen] = useState(false);
     const [editingNotes, setEditingNotes] = useState("");
-    const [sortConfig, setSortConfig] = useState<{
-        key: keyof CashTransaction | null;
-        direction: "asc" | "desc";
-    }>({ key: "date", direction: "desc" });
-    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
+    const [searchQuery, setSearchQuery] = useState("");
 
     const accessToken = (session as { accessToken?: string })?.accessToken;
 
@@ -80,7 +71,7 @@ export default function AssetsPage() {
         if (!accessToken) return;
         try {
             const [txData, portfolioData] = await Promise.all([
-                getCashTransactions(accessToken),
+                getCashTransactions(accessToken, 0, 10000),
                 getPortfolioSummary(accessToken),
             ]);
             setTransactions(txData.transactions);
@@ -122,7 +113,7 @@ export default function AssetsPage() {
             setIsDialogOpen(false);
             setFormData({
                 date: new Date().toISOString().split("T")[0],
-                type: "deposit",
+                action: "Deposit",
                 amount: 0,
                 currency: "USD",
                 notes: "",
@@ -135,6 +126,8 @@ export default function AssetsPage() {
 
     const handleDelete = async (id: string) => {
         if (!accessToken) return;
+        if (!confirm("Are you sure you want to delete this transaction?")) return;
+
         try {
             await deleteCashTransaction(accessToken, id);
             fetchData();
@@ -160,30 +153,6 @@ export default function AssetsPage() {
             console.error("Failed to update notes:", error);
         }
     };
-    const handleSort = (key: keyof CashTransaction) => {
-        setSortConfig((current) => ({
-            key,
-            direction:
-                current.key === key && current.direction === "asc" ? "desc" : "asc",
-        }));
-    };
-
-    const sortedTransactions = [...transactions].sort((a, b) => {
-        if (!sortConfig.key) return 0;
-
-        const aValue = a[sortConfig.key];
-        const bValue = b[sortConfig.key];
-
-        if (aValue === undefined || bValue === undefined) return 0;
-
-        if (aValue < bValue) {
-            return sortConfig.direction === "asc" ? -1 : 1;
-        }
-        if (aValue > bValue) {
-            return sortConfig.direction === "asc" ? 1 : -1;
-        }
-        return 0;
-    });
 
     const handleExport = async (format: "csv" | "xlsx") => {
         if (!accessToken) return;
@@ -202,27 +171,85 @@ export default function AssetsPage() {
         }
     };
 
-    const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (!accessToken || !e.target.files?.[0]) return;
-        try {
-            const result = await importCash(accessToken, e.target.files[0]);
-            if (result.success_count > 0) {
-                alert(t('import_success', { count: result.success_count }));
-                fetchData();
-            }
-            if (result.error_count > 0) {
-                alert(t('import_error', { count: result.error_count }));
-            }
-        } catch (error) {
-            console.error("Import failed:", error);
-        } finally {
-            if (fileInputRef.current) {
-                fileInputRef.current.value = "";
-            }
-        }
-    };
-
-    // formatMoney is now provided by useCurrency()
+    // Define columns for DataTable
+    const columns: ColumnDef<CashTransaction>[] = [
+        {
+            accessorKey: "date",
+            header: ({ column }) => (
+                <DataTableColumnHeader column={column} title={tTrades("date")} className="w-full justify-center" />
+            ),
+            cell: ({ row }) => <div className="text-center">{new Date(row.getValue("date")).toLocaleDateString()}</div>,
+        },
+        {
+            accessorKey: "action",
+            header: ({ column }) => (
+                <DataTableColumnHeader column={column} title={t("action")} className="w-full justify-center" />
+            ),
+            cell: ({ row }) => {
+                // Color based on amount sign: positive = green (inflow), negative = red (outflow)
+                const amount = row.original.amount as number;
+                const isPositive = amount > 0;
+                const isNegative = amount < 0;
+                return (
+                    <div className="text-center">
+                        <span className={
+                            isPositive ? "text-green-600 dark:text-green-400" :
+                            isNegative ? "text-red-600 dark:text-red-400" :
+                            ""
+                        }>
+                            {row.getValue("action")}
+                        </span>
+                    </div>
+                );
+            },
+        },
+        {
+            accessorKey: "amount",
+            header: ({ column }) => (
+                <DataTableColumnHeader column={column} title={t("amount")} className="w-full justify-center" />
+            ),
+            cell: ({ row }) => {
+                const amount = row.getValue("amount") as number;
+                const isPositive = amount > 0;
+                const isNegative = amount < 0;
+                return (
+                    <div className={`text-center ${
+                        isPositive ? "text-green-600 dark:text-green-400" :
+                        isNegative ? "text-red-600 dark:text-red-400" :
+                        ""
+                    }`}>
+                        {formatMoney(amount)}
+                    </div>
+                );
+            },
+        },
+        {
+            accessorKey: "currency",
+            header: ({ column }) => (
+                <DataTableColumnHeader column={column} title={tTrades("currency")} className="w-full justify-center" />
+            ),
+            cell: ({ row }) => <div className="text-center">{row.getValue("currency")}</div>,
+        },
+        {
+            id: "actions",
+            header: () => <div className="text-center w-full"> </div>,
+            cell: ({ row }) => (
+                <div className="text-center">
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-muted-foreground hover:text-destructive"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            handleDelete(row.original.id);
+                        }}
+                    >
+                        {t("delete")}
+                    </Button>
+                </div>
+            ),
+        },
+    ];
 
     return (
         <div className="max-w-5xl mx-auto space-y-6">
@@ -252,18 +279,11 @@ export default function AssetsPage() {
                         </DropdownMenuContent>
                     </DropdownMenu>
 
-                    {/* Import Button */}
-                    <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
+                    {/* Import Button - uses unified importer */}
+                    <Button variant="outline" onClick={() => setIsImportDialogOpen(true)}>
                         <Upload className="h-4 w-4 mr-2" />
                         {t('import')}
                     </Button>
-                    <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept=".csv,.xlsx"
-                        className="hidden"
-                        onChange={handleImport}
-                    />
 
                     <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                         <DialogTrigger asChild>
@@ -279,23 +299,6 @@ export default function AssetsPage() {
                             <form onSubmit={handleSubmit} className="space-y-4">
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="space-y-2">
-                                        <Label htmlFor="type">{tTrades("type")}</Label>
-                                        <select
-                                            id="type"
-                                            className="w-full h-10 px-3 border rounded-md bg-background"
-                                            value={formData.type}
-                                            onChange={(e) =>
-                                                setFormData({
-                                                    ...formData,
-                                                    type: e.target.value as "deposit" | "withdraw",
-                                                })
-                                            }
-                                        >
-                                            <option value="deposit">{t('deposit')}</option>
-                                            <option value="withdraw">{t('withdraw')}</option>
-                                        </select>
-                                    </div>
-                                    <div className="space-y-2">
                                         <Label htmlFor="date">{tTrades("date")}</Label>
                                         <Input
                                             id="date"
@@ -306,6 +309,27 @@ export default function AssetsPage() {
                                             }
                                             required
                                         />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="action">{t("action")}</Label>
+                                        <select
+                                            id="action"
+                                            className="w-full h-10 px-3 border rounded-md bg-background"
+                                            value={formData.action}
+                                            onChange={(e) =>
+                                                setFormData({
+                                                    ...formData,
+                                                    action: e.target.value,
+                                                })
+                                            }
+                                        >
+                                            <option value="Deposit">{t('deposit')}</option>
+                                            <option value="Withdraw">{t('withdraw')}</option>
+                                            <option value="Dividend">{t('dividend')}</option>
+                                            <option value="Tax">{t('tax')}</option>
+                                            <option value="Interest">{t('interest')}</option>
+                                            <option value="Fee">{t('fee')}</option>
+                                        </select>
                                     </div>
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
@@ -374,121 +398,28 @@ export default function AssetsPage() {
 
             {/* Transactions Table */}
             <Card>
-                <CardHeader>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
                     <CardTitle>{t('history_title')}</CardTitle>
-                    <CardDescription>{t('history_subtitle')}</CardDescription>
+                    <DataTableSearch
+                        value={searchQuery}
+                        onChange={setSearchQuery}
+                        placeholder={t("search_placeholder")}
+                    />
                 </CardHeader>
                 <CardContent>
                     {isLoading ? (
                         <div className="text-center py-8 text-muted-foreground">
                             {tCommon("loading")}
                         </div>
-                    ) : transactions.length === 0 ? (
-                        <div className="text-center py-8 text-muted-foreground">
-                            {t('no_transactions')}
-                        </div>
                     ) : (
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>
-                                        <Button
-                                            variant="ghost"
-                                            onClick={() => handleSort("date")}
-                                        >
-                                            {tTrades("date")}
-                                            {sortConfig.key === "date" &&
-                                                (sortConfig.direction === "asc" ? (
-                                                    <ArrowUp className="ml-2 h-4 w-4" />
-                                                ) : (
-                                                    <ArrowDown className="ml-2 h-4 w-4" />
-                                                ))}
-                                            {sortConfig.key !== "date" && (
-                                                <ArrowUpDown className="ml-2 h-4 w-4" />
-                                            )}
-                                        </Button>
-                                    </TableHead>
-                                    <TableHead>
-                                        <Button
-                                            variant="ghost"
-                                            onClick={() => handleSort("type")}
-                                        >
-                                            {tTrades("type")}
-                                            {sortConfig.key === "type" &&
-                                                (sortConfig.direction === "asc" ? (
-                                                    <ArrowUp className="ml-2 h-4 w-4" />
-                                                ) : (
-                                                    <ArrowDown className="ml-2 h-4 w-4" />
-                                                ))}
-                                            {sortConfig.key !== "type" && (
-                                                <ArrowUpDown className="ml-2 h-4 w-4" />
-                                            )}
-                                        </Button>
-                                    </TableHead>
-                                    <TableHead className="text-right">
-                                        <Button
-                                            variant="ghost"
-                                            onClick={() => handleSort("amount")}
-                                        >
-                                            {t('amount')}
-                                            {sortConfig.key === "amount" &&
-                                                (sortConfig.direction === "asc" ? (
-                                                    <ArrowUp className="ml-2 h-4 w-4" />
-                                                ) : (
-                                                    <ArrowDown className="ml-2 h-4 w-4" />
-                                                ))}
-                                            {sortConfig.key !== "amount" && (
-                                                <ArrowUpDown className="ml-2 h-4 w-4" />
-                                            )}
-                                        </Button>
-                                    </TableHead>
-                                    <TableHead>{tTrades("currency")}</TableHead>
-                                    <TableHead></TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {sortedTransactions.map((tx) => (
-                                    <TableRow
-                                        key={tx.id}
-                                        className="cursor-pointer hover:bg-muted/50"
-                                        onClick={() => handleViewNotes(tx)}
-                                    >
-                                        <TableCell>
-                                            {new Date(tx.date).toLocaleDateString()}
-                                        </TableCell>
-                                        <TableCell>
-                                            <span
-                                                className={
-                                                    tx.type === "deposit"
-                                                        ? "text-green-600 dark:text-green-400"
-                                                        : "text-red-600 dark:text-red-400"
-                                                }
-                                            >
-                                                {t(tx.type)}
-                                            </span>
-                                        </TableCell>
-                                        <TableCell className="text-right">
-                                            {tx.type === "deposit" ? "+" : "-"}
-                                            {formatMoney(tx.amount)}
-                                        </TableCell>
-                                        <TableCell>{tx.currency}</TableCell>
-                                        <TableCell>
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                className="text-muted-foreground hover:text-destructive"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    handleDelete(tx.id);
-                                                }}
-                                            >
-                                                {t('delete')}
-                                            </Button>
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
+                        <DataTable
+                            columns={columns}
+                            data={transactions}
+                            onRowClick={handleViewNotes}
+                            externalSearch={searchQuery}
+                            onExternalSearchChange={setSearchQuery}
+                            centered={true}
+                        />
                     )}
                 </CardContent>
             </Card>
@@ -498,7 +429,7 @@ export default function AssetsPage() {
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>
-                            {t('notes_dialog_title', { type: t(selectedTransaction?.type || 'deposit') })} ({formatMoney(selectedTransaction?.amount || 0)})
+                            {t('notes_dialog_title', { type: selectedTransaction?.action || 'Deposit' })} ({formatMoney(selectedTransaction?.amount || 0)})
                         </DialogTitle>
                         <DialogDescription>
                             {selectedTransaction && new Date(selectedTransaction.date).toLocaleDateString()}
@@ -522,7 +453,13 @@ export default function AssetsPage() {
                     </div>
                 </DialogContent>
             </Dialog>
+
+            {/* Import Dialog */}
+            <TransactionImportDialog
+                open={isImportDialogOpen}
+                onOpenChange={setIsImportDialogOpen}
+                onSuccess={fetchData}
+            />
         </div>
     );
 }
-

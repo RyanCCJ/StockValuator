@@ -81,15 +81,18 @@
         "dialog_description": "記錄新的買入或賣出交易。",
         "symbol": "代碼",
         "type": "類型",
+        "action": "操作",
         "date": "日期",
         "price": "價格",
         "quantity": "數量",
+        "amount": "金額",
         "fees": "手續費",
         "currency": "幣別",
         "notes": "交易筆記",
         "notes_placeholder": "記錄您的交易想法、理由或反思...",
         "buy": "買入",
         "sell": "賣出",
+        "reinvest": "股息再投資",
         "history_title": "交易歷史",
         "no_trades": "尚無交易。點擊「新增交易」以記錄您的第一筆交易。",
         "total": "總額",
@@ -99,8 +102,10 @@
         "notes_dialog_title": "交易筆記 - {symbol}",
         "export": "匯出",
         "import": "匯入",
+        "import_brokerage": "匯入券商",
         "import_success": "成功匯入 {count} 筆交易",
-        "import_error": "匯入失敗 {count} 筆"
+        "import_error": "匯入失敗 {count} 筆",
+        "search_placeholder": "搜尋交易..."
     },
     "Assets": {
         "title": "資產",
@@ -112,8 +117,13 @@
         "history_subtitle": "所有入金與出金紀錄",
         "no_transactions": "尚無交易。點擊「新增交易」開始。",
         "amount": "金額",
+        "action": "操作",
         "deposit": "入金",
         "withdraw": "出金",
+        "dividend": "股息",
+        "tax": "稅金",
+        "interest": "利息",
+        "fee": "費用",
         "notes_placeholder": "新增關於此交易的筆記...",
         "notes_dialog_title": "交易筆記 - {type}",
         "save_notes": "儲存備註",
@@ -122,12 +132,21 @@
         "export": "匯出",
         "import": "匯入",
         "import_success": "成功匯入 {count} 筆交易",
-        "import_error": "匯入失敗 {count} 筆"
+        "import_error": "匯入失敗 {count} 筆",
+        "search_placeholder": "搜尋交易..."
     },
     "Common": {
         "loading": "載入中...",
         "csv": "CSV",
-        "xlsx": "Excel"
+        "xlsx": "Excel",
+        "page": "頁",
+        "of": "/",
+        "rows_per_page": "每頁筆數",
+        "previous": "上一頁",
+        "next": "下一頁",
+        "showing": "顯示",
+        "to": "至",
+        "total": "共"
     },
     "StockDetail": {
         "technical_analysis": "技術分析",
@@ -302,5 +321,23 @@
         "risk_low": "低風險",
         "risk_medium": "中等風險",
         "risk_high": "高風險"
+    },
+    "Import": {
+        "import_brokerage_title": "匯入券商交易",
+        "import_brokerage_description": "上傳券商的檔案，自動匯入交易和現金交易。目前支援 Firstrade、Charles Schwab 和 TD Ameritrade。",
+        "select_file": "選擇檔案",
+        "change_file": "更換檔案",
+        "supported_formats": "支援：CSV、Excel (.xlsx, .xls)",
+        "import": "匯入",
+        "importing": "匯入中...",
+        "cancel": "取消",
+        "close": "關閉",
+        "import_complete": "匯入完成",
+        "trades_created": "已建立交易",
+        "cash_transactions": "現金交易",
+        "duplicates_skipped": "跳過重複",
+        "warnings": "警告",
+        "errors": "錯誤",
+        "and_more": "另有 {count} 筆"
     }
 }

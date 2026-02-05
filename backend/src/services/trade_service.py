@@ -44,13 +44,26 @@ async def get_trade_by_id(db: AsyncSession, trade_id: UUID, user_id: UUID) -> Tr
 
 async def create_trade(db: AsyncSession, user_id: UUID, trade_data: TradeCreate) -> Trade:
     """Create a new trade for a user."""
+    # Calculate amount if not provided
+    amount = trade_data.amount
+    if amount is None:
+        # Calculate based on action: Buy-like = negative (cash out), Sell-like = positive (cash in)
+        total = trade_data.price * trade_data.quantity
+        action_lower = trade_data.action.lower()
+        if action_lower in ['buy', 'reinvest', 'reinvest shares']:
+            amount = -total
+        elif action_lower in ['sell']:
+            amount = total
+        # For other actions (like Stock Split), leave as None (neutral)
+
     trade = Trade(
         user_id=user_id,
         symbol=trade_data.symbol.upper(),
         date=trade_data.date,
-        type=trade_data.type,
+        action=trade_data.action,
         price=trade_data.price,
         quantity=trade_data.quantity,
+        amount=amount,
         fees=trade_data.fees,
         currency=trade_data.currency,
         notes=trade_data.notes,
