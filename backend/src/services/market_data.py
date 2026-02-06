@@ -216,6 +216,7 @@ def _sync_get_fundamental_data(symbol: str) -> dict | None:
         fundamental_data = {
             "symbol": symbol,
             "is_etf": is_etf,
+            "quote_type": info.get("quoteType"),
             "long_name": info.get("longName"),
             "market_cap": info.get("marketCap"),
             "beta": info.get("beta"),

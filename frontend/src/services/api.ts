@@ -105,6 +105,7 @@ interface Holding {
     unrealized_pnl_percent: number;
     price_change: number | null;
     price_change_percent: number | null;
+    sector: string;
 }
 
 interface PortfolioSummary {

@@ -145,3 +145,108 @@ class TestMarketDataAsync:
 
             mock_executor.assert_called_once()
             assert result == 0.015
+
+
+class TestFundamentalDataSectorExtraction:
+    """Tests for sector and quote_type extraction from fundamental data."""
+
+    @pytest.mark.asyncio
+    async def test_stock_sector_extraction(self):
+        """Test that stocks correctly extract sector and industry from yfinance."""
+        from src.services.market_data import _sync_get_fundamental_data
+
+        mock_info = {
+            "quoteType": "EQUITY",
+            "longName": "Apple Inc.",
+            "marketCap": 3000000000000,
+            "sector": "Technology",
+            "industry": "Consumer Electronics",
+            "beta": 1.2,
+        }
+
+        with patch("yfinance.Ticker") as MockTicker:
+            mock_ticker = MagicMock()
+            mock_ticker.info = mock_info
+            mock_ticker.institutional_holders = None
+            MockTicker.return_value = mock_ticker
+
+            result = _sync_get_fundamental_data("AAPL")
+
+            assert result is not None
+            assert result["quote_type"] == "EQUITY"
+            assert result["sector"] == "Technology"
+            assert result["industry"] == "Consumer Electronics"
+            assert result["is_etf"] is False
+
+    @pytest.mark.asyncio
+    async def test_etf_quote_type_extraction(self):
+        """Test that ETFs correctly extract quote_type = 'ETF'."""
+        from src.services.market_data import _sync_get_fundamental_data
+
+        mock_info = {
+            "quoteType": "ETF",
+            "longName": "SPDR S&P 500 ETF Trust",
+            "marketCap": 400000000000,
+            "beta": 1.0,
+        }
+
+        with patch("yfinance.Ticker") as MockTicker:
+            mock_ticker = MagicMock()
+            mock_ticker.info = mock_info
+            mock_ticker.funds_data = None
+            MockTicker.return_value = mock_ticker
+
+            result = _sync_get_fundamental_data("SPY")
+
+            assert result is not None
+            assert result["quote_type"] == "ETF"
+            assert result["is_etf"] is True
+
+    @pytest.mark.asyncio
+    async def test_crypto_quote_type_extraction(self):
+        """Test that cryptocurrencies correctly extract quote_type = 'CRYPTOCURRENCY'."""
+        from src.services.market_data import _sync_get_fundamental_data
+
+        mock_info = {
+            "quoteType": "CRYPTOCURRENCY",
+            "longName": "Bitcoin USD",
+            "marketCap": 1000000000000,
+            "coinImageUrl": "https://example.com/btc.png",
+        }
+
+        with patch("yfinance.Ticker") as MockTicker:
+            mock_ticker = MagicMock()
+            mock_ticker.info = mock_info
+            mock_ticker.institutional_holders = None
+            MockTicker.return_value = mock_ticker
+
+            result = _sync_get_fundamental_data("BTC-USD")
+
+            assert result is not None
+            assert result["quote_type"] == "CRYPTOCURRENCY"
+            assert result["is_etf"] is False
+
+    @pytest.mark.asyncio
+    async def test_missing_sector_returns_none(self):
+        """Test that missing sector info returns None for those fields."""
+        from src.services.market_data import _sync_get_fundamental_data
+
+        mock_info = {
+            "quoteType": "EQUITY",
+            "longName": "Unknown Stock",
+            "marketCap": 1000000,
+            # No sector or industry fields
+        }
+
+        with patch("yfinance.Ticker") as MockTicker:
+            mock_ticker = MagicMock()
+            mock_ticker.info = mock_info
+            mock_ticker.institutional_holders = None
+            MockTicker.return_value = mock_ticker
+
+            result = _sync_get_fundamental_data("UNKNOWN")
+
+            assert result is not None
+            assert result["quote_type"] == "EQUITY"
+            assert result["sector"] is None
+            assert result["industry"] is None

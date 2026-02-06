@@ -39,6 +39,7 @@ class FinancialData(Base, TimestampMixin):
     price_to_book: Mapped[float | None] = mapped_column(Float, nullable=True)
     sector: Mapped[str | None] = mapped_column(String(100), nullable=True)
     industry: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    quote_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
     beta: Mapped[float | None] = mapped_column(Float, nullable=True)
     # Finviz forward-looking data for Fair Value
     eps_next_year: Mapped[float | None] = mapped_column(Float, nullable=True)
