@@ -521,7 +521,7 @@ class ImporterService:
             currency="USD",
             notes=row.notes,
         )
-        return await create_trade(db, user_id, trade_data)
+        return await create_trade(db, user_id, trade_data, auto_sign=False)
 
     async def _create_cash(
         self, db: AsyncSession, user_id: UUID, row: ParsedRow
@@ -542,4 +542,4 @@ class ImporterService:
             currency="USD",
             notes=notes,
         )
-        return await create_cash_transaction(db, user_id, cash_data)
+        return await create_cash_transaction(db, user_id, cash_data, auto_sign=False)

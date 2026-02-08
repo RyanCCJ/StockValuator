@@ -102,22 +102,33 @@ async def get_cash_transaction_by_id(
 
 
 async def create_cash_transaction(
-    db: AsyncSession, user_id: UUID, data: CashTransactionCreate
+    db: AsyncSession, user_id: UUID, data: CashTransactionCreate, *, auto_sign: bool = True
 ) -> CashTransaction:
     """Create a new cash transaction.
 
-    Amount sign is determined by action type:
+    Args:
+        db: Database session.
+        user_id: ID of the user creating the transaction.
+        data: Transaction data.
+        auto_sign: If True (default), infer sign from action type (for manual entry).
+                   If False, trust the provided amount sign (for imports).
+
+    Amount sign logic when auto_sign=True:
     - Positive (money in): Deposit, Dividend, Interest
     - Negative (money out): Withdraw, Tax, Fee
     """
-    # Determine amount sign based on action
-    amount = abs(data.amount)  # Start with absolute value
-    action_lower = data.action.lower()
+    if auto_sign:
+        # Manual entry: determine amount sign based on action
+        amount = abs(data.amount)  # Start with absolute value
+        action_lower = data.action.lower()
 
-    # Negative actions (money out)
-    if action_lower in ['withdraw', 'tax', 'fee']:
-        amount = -amount
-    # Positive actions (money in): deposit, dividend, interest - keep positive
+        # Negative actions (money out)
+        if action_lower in ['withdraw', 'tax', 'fee']:
+            amount = -amount
+        # Positive actions (money in): deposit, dividend, interest - keep positive
+    else:
+        # Import: trust the provided amount sign
+        amount = data.amount
 
     transaction = CashTransaction(
         user_id=user_id,

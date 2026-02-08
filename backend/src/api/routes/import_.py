@@ -49,7 +49,7 @@ async def import_trades(
     for i, row in enumerate(rows, start=2):  # Start at 2 (row 1 is header)
         try:
             trade_data = _parse_trade_row(row)
-            await create_trade(db, current_user.id, trade_data)
+            await create_trade(db, current_user.id, trade_data, auto_sign=False)
             result.success_count += 1
         except Exception as e:
             result.errors.append({"row": i, "error": str(e)})
@@ -85,7 +85,7 @@ async def import_cash(
     for i, row in enumerate(rows, start=2):
         try:
             cash_data = _parse_cash_row(row)
-            await create_cash_transaction(db, current_user.id, cash_data)
+            await create_cash_transaction(db, current_user.id, cash_data, auto_sign=False)
             result.success_count += 1
         except Exception as e:
             result.errors.append({"row": i, "error": str(e)})
