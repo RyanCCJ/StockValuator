@@ -23,21 +23,22 @@ async def export_trades(
 ):
     """Export all trades for the current user as CSV or XLSX."""
     trades, _ = await get_trades_by_user(db, current_user.id, skip=0, limit=10000)
-    
-    headers = ["date", "symbol", "type", "price", "quantity", "fees", "currency", "notes"]
+
+    headers = ["date", "symbol", "action", "price", "quantity", "amount", "fees", "currency", "notes"]
     rows = []
     for t in trades:
         rows.append([
             t.date.strftime("%Y-%m-%d %H:%M:%S"),
             t.symbol,
-            t.type.value,
+            t.action,
             str(t.price),
             str(t.quantity),
+            str(t.amount) if t.amount is not None else "",
             str(t.fees),
             t.currency,
             t.notes or "",
         ])
-    
+
     if format == "csv":
         return _create_csv_response(headers, rows, "trades.csv")
     else:
@@ -52,18 +53,18 @@ async def export_cash(
 ):
     """Export all cash transactions for the current user as CSV or XLSX."""
     transactions, _ = await get_cash_transactions_by_user(db, current_user.id, skip=0, limit=10000)
-    
-    headers = ["date", "type", "amount", "currency", "notes"]
+
+    headers = ["date", "action", "amount", "currency", "notes"]
     rows = []
     for t in transactions:
         rows.append([
             t.date.strftime("%Y-%m-%d %H:%M:%S"),
-            t.type.value,
+            t.action,
             str(t.amount),
             t.currency,
             t.notes or "",
         ])
-    
+
     if format == "csv":
         return _create_csv_response(headers, rows, "cash_transactions.csv")
     else:

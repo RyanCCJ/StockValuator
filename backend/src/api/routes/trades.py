@@ -22,7 +22,7 @@ async def list_trades(
     current_user: CurrentUser,
     db: DbSession,
     skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=1000),
+    limit: int = Query(100, ge=1, le=10000),
 ):
     """List all trades for the current user."""
     trades, total = await get_trades_by_user(db, current_user.id, skip, limit)

@@ -3,12 +3,113 @@
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.trade import Trade, TradeType
-from src.services.market_data import get_stock_prices_batch
+from src.models.trade import Trade
+from src.models.financial_data import FinancialData
+from src.services.market_data import get_stock_prices_batch, get_fundamental_data
 from src.services.cash_service import get_cash_balance
+
+# Actions that are considered "buy" (money out, shares in)
+BUY_ACTIONS = {'buy', 'reinvest', 'purchase', 'subscription'}
+# Actions that are considered "sell" (money in, shares out)
+SELL_ACTIONS = {'sell', 'sold', 'disposal', 'redemption'}
+
+
+def resolve_sector(quote_type: str | None, sector: str | None) -> str:
+    """
+    Resolve the display sector for a holding based on the classification logic:
+    1. If quoteType is "ETF" -> "ETF"
+    2. If quoteType is "CRYPTOCURRENCY" -> "Crypto"
+    3. If sector is available -> use that sector
+    4. Fallback -> "Other"
+    """
+    if quote_type == "ETF":
+        return "ETF"
+    if quote_type == "CRYPTOCURRENCY":
+        return "Crypto"
+    if sector:
+        return sector
+    return "Other"
+
+
+async def get_holdings_metadata(
+    db: AsyncSession, symbols: list[str]
+) -> dict[str, dict]:
+    """
+    Fetch sector and quote_type metadata for a list of symbols from FinancialData.
+    Returns a dict mapping symbol -> {sector, quote_type, industry}.
+    For symbols with multiple records, uses the most recently fetched one.
+    """
+    if not symbols:
+        return {}
+
+    # Get all records for the symbols, ordered by fetched_at descending
+    query = (
+        select(FinancialData)
+        .where(FinancialData.symbol.in_(symbols))
+        .order_by(FinancialData.fetched_at.desc())
+    )
+    result = await db.execute(query)
+    records = result.scalars().all()
+
+    # Build metadata dict - first occurrence per symbol is the most recent
+    metadata = {}
+    for record in records:
+        if record.symbol not in metadata:
+            metadata[record.symbol] = {
+                "sector": record.sector,
+                "industry": record.industry,
+                "quote_type": record.quote_type,
+            }
+    return metadata
+
+
+async def fetch_and_cache_metadata(
+    db: AsyncSession, symbol: str
+) -> dict | None:
+    """
+    Fetch metadata for a symbol from the external provider and cache it in FinancialData.
+    Returns the metadata dict or None if not available.
+    """
+    fundamental_data = await get_fundamental_data(symbol)
+    if not fundamental_data:
+        return None
+
+    # Check if record exists (get most recent by fetched_at)
+    query = (
+        select(FinancialData)
+        .where(FinancialData.symbol == symbol)
+        .order_by(FinancialData.fetched_at.desc())
+        .limit(1)
+    )
+    result = await db.execute(query)
+    existing = result.scalar_one_or_none()
+
+    if existing:
+        # Update existing record
+        existing.sector = fundamental_data.get("sector")
+        existing.industry = fundamental_data.get("industry")
+        existing.quote_type = fundamental_data.get("quote_type")
+    else:
+        # Create new record with minimal data
+        new_record = FinancialData(
+            symbol=symbol,
+            source="yfinance",
+            sector=fundamental_data.get("sector"),
+            industry=fundamental_data.get("industry"),
+            quote_type=fundamental_data.get("quote_type"),
+        )
+        db.add(new_record)
+
+    await db.commit()
+
+    return {
+        "sector": fundamental_data.get("sector"),
+        "industry": fundamental_data.get("industry"),
+        "quote_type": fundamental_data.get("quote_type"),
+    }
 
 
 async def get_portfolio_summary(db: AsyncSession, user_id: UUID, base_currency: str = "USD") -> dict:
@@ -43,6 +144,7 @@ async def get_portfolio_summary(db: AsyncSession, user_id: UUID, base_currency: 
         qty = float(trade.quantity)
         price = float(trade.price)
         fees = float(trade.fees)
+        action_lower = trade.action.lower()
 
         if symbol not in holdings:
             holdings[symbol] = {
@@ -52,10 +154,23 @@ async def get_portfolio_summary(db: AsyncSession, user_id: UUID, base_currency: 
                 "realized_pnl": 0,
             }
 
-        if trade.type == TradeType.BUY:
+
+        # Determine transaction type based on keywords and adjustment flag
+        # We look for partial matches (substrings) instead of exact matches
+        is_buy_signal = any(k in action_lower for k in BUY_ACTIONS)
+        is_sell_signal = any(k in action_lower for k in SELL_ACTIONS)
+        is_adj = "adj" in action_lower
+
+        # Apply logic with adjustment inversion
+        # If 'adj' is present, it inverts the logic (Buy -> Sell, Sell -> Buy)
+        # e.g., "Reinvestment Adj" (Buy keyword + Adj) -> Treated as Sell (deducts cost/qty)
+        effective_buy = (is_buy_signal and not is_adj) or (is_sell_signal and is_adj)
+        effective_sell = (is_sell_signal and not is_adj) or (is_buy_signal and is_adj)
+
+        if effective_buy:
             holdings[symbol]["quantity"] += qty
             holdings[symbol]["total_cost"] += (qty * price) + fees
-        else:  # SELL
+        elif effective_sell:
             if holdings[symbol]["quantity"] > 0:
                 avg_cost = holdings[symbol]["total_cost"] / holdings[symbol]["quantity"]
                 cost_of_sold = avg_cost * qty
@@ -63,6 +178,11 @@ async def get_portfolio_summary(db: AsyncSession, user_id: UUID, base_currency: 
                 holdings[symbol]["realized_pnl"] += proceeds - cost_of_sold
                 holdings[symbol]["quantity"] -= qty
                 holdings[symbol]["total_cost"] -= cost_of_sold
+        # Neutral actions (Stock Split, Merger, etc.) - just adjust quantity, no cost change
+        else:
+            # For stock splits and similar, we add shares but don't change cost basis
+            # The quantity change is already in the trade
+            holdings[symbol]["quantity"] += qty
 
     # Remove positions with zero quantity
     holdings = {k: v for k, v in holdings.items() if v["quantity"] > 0.0001}
@@ -70,6 +190,19 @@ async def get_portfolio_summary(db: AsyncSession, user_id: UUID, base_currency: 
     # Get current prices
     symbols = list(holdings.keys())
     prices = await get_stock_prices_batch(symbols) if symbols else {}
+
+    # Fetch metadata (sector, quote_type) for all holdings
+    metadata = await get_holdings_metadata(db, symbols) if symbols else {}
+
+    # Identify symbols missing metadata OR missing quote_type (needs refresh)
+    symbols_needing_fetch = [
+        s for s in symbols
+        if s not in metadata or metadata[s].get("quote_type") is None
+    ]
+    for symbol in symbols_needing_fetch:
+        fetched = await fetch_and_cache_metadata(db, symbol)
+        if fetched:
+            metadata[symbol] = fetched
 
     # Calculate current values and unrealized P&L
     result_holdings = []
@@ -98,6 +231,13 @@ async def get_portfolio_summary(db: AsyncSession, user_id: UUID, base_currency: 
         total_realized_pnl += Decimal(str(holding["realized_pnl"]))
         total_unrealized_pnl += unrealized
 
+        # Get sector from metadata
+        symbol_metadata = metadata.get(symbol, {})
+        sector = resolve_sector(
+            symbol_metadata.get("quote_type"),
+            symbol_metadata.get("sector")
+        )
+
         result_holdings.append({
             "symbol": symbol,
             "quantity": float(qty),
@@ -109,6 +249,7 @@ async def get_portfolio_summary(db: AsyncSession, user_id: UUID, base_currency: 
             "unrealized_pnl_percent": float((unrealized / cost) * 100) if cost > 0 else 0,
             "price_change": price_data.get("change") if price_data else None,
             "price_change_percent": price_data.get("change_percent") if price_data else None,
+            "sector": sector,
         })
 
     # Sort by value descending
@@ -120,10 +261,10 @@ async def get_portfolio_summary(db: AsyncSession, user_id: UUID, base_currency: 
     # Get cash balance
     cash_balance = await get_cash_balance(db, user_id)
     cash_balance_float = float(cash_balance)
-    
+
     # Calculate total portfolio (cash + investments)
     total_portfolio = float(total_value) + cash_balance_float
-    
+
     # Cash ratio as percentage
     cash_ratio = (cash_balance_float / total_portfolio * 100) if total_portfolio > 0 else 0
 

@@ -6,7 +6,7 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.cash import CashTransaction, CashTransactionType
+from src.models.cash import CashTransaction
 from src.schemas.cash import CashTransactionCreate, CashTransactionUpdate
 
 
@@ -41,52 +41,53 @@ async def get_cash_transactions_by_user(
 async def get_cash_balance(db: AsyncSession, user_id: UUID) -> Decimal:
     """
     Calculate total cash balance for a user.
-    
-    Cash Balance = Deposits - Withdrawals - Buy Costs + Sell Proceeds
-    
-    Where:
-    - Buy Costs = (price * quantity) + fees
-    - Sell Proceeds = (price * quantity) - fees
+
+    With the new action-based system, we simply sum all amounts:
+    - Positive amounts = money in (deposits, dividends, interest, sell proceeds)
+    - Negative amounts = money out (withdrawals, taxes, fees, buy costs)
+
+    For trades, we calculate:
+    - Buy: -(price * quantity + fees) [money out]
+    - Sell: +(price * quantity - fees) [money in]
+    - Neutral (Stock Split, etc.): 0 [no cash impact]
     """
-    from src.models.trade import Trade, TradeType
-    
-    # Sum deposits
-    deposit_query = (
+    from src.models.trade import Trade
+
+    # Sum all cash transaction amounts (positive = in, negative = out)
+    cash_query = (
         select(func.coalesce(func.sum(CashTransaction.amount), 0))
         .where(CashTransaction.user_id == user_id)
-        .where(CashTransaction.type == CashTransactionType.DEPOSIT)
     )
-    deposit_result = await db.execute(deposit_query)
-    total_deposits = Decimal(str(deposit_result.scalar() or 0))
+    cash_result = await db.execute(cash_query)
+    total_cash = Decimal(str(cash_result.scalar() or 0))
 
-    # Sum withdrawals
-    withdraw_query = (
-        select(func.coalesce(func.sum(CashTransaction.amount), 0))
-        .where(CashTransaction.user_id == user_id)
-        .where(CashTransaction.type == CashTransactionType.WITHDRAW)
-    )
-    withdraw_result = await db.execute(withdraw_query)
-    total_withdrawals = Decimal(str(withdraw_result.scalar() or 0))
+    # For trades, we need to determine if it's a buy or sell based on action
+    # Buy actions typically include: Buy, Reinvest Shares
+    # Sell actions typically include: Sell
+    # Neutral actions: Stock Split, Stock Merger, Spin-off (no cash impact)
 
-    # Sum buy costs: (price * quantity) + fees
+    # Buy-like actions (money out): -(price * quantity + fees)
+    buy_actions = ['buy', 'reinvest']
     buy_query = (
         select(func.coalesce(func.sum(Trade.price * Trade.quantity + Trade.fees), 0))
         .where(Trade.user_id == user_id)
-        .where(Trade.type == TradeType.BUY)
+        .where(func.lower(Trade.action).in_(buy_actions))
     )
     buy_result = await db.execute(buy_query)
     total_buy_costs = Decimal(str(buy_result.scalar() or 0))
 
-    # Sum sell proceeds: (price * quantity) - fees
+    # Sell-like actions (money in): +(price * quantity - fees)
+    sell_actions = ['sell']
     sell_query = (
         select(func.coalesce(func.sum(Trade.price * Trade.quantity - Trade.fees), 0))
         .where(Trade.user_id == user_id)
-        .where(Trade.type == TradeType.SELL)
+        .where(func.lower(Trade.action).in_(sell_actions))
     )
     sell_result = await db.execute(sell_query)
     total_sell_proceeds = Decimal(str(sell_result.scalar() or 0))
 
-    return total_deposits - total_withdrawals - total_buy_costs + total_sell_proceeds
+    # Balance = cash transactions + sell proceeds - buy costs
+    return total_cash + total_sell_proceeds - total_buy_costs
 
 
 async def get_cash_transaction_by_id(
@@ -101,14 +102,39 @@ async def get_cash_transaction_by_id(
 
 
 async def create_cash_transaction(
-    db: AsyncSession, user_id: UUID, data: CashTransactionCreate
+    db: AsyncSession, user_id: UUID, data: CashTransactionCreate, *, auto_sign: bool = True
 ) -> CashTransaction:
-    """Create a new cash transaction."""
+    """Create a new cash transaction.
+
+    Args:
+        db: Database session.
+        user_id: ID of the user creating the transaction.
+        data: Transaction data.
+        auto_sign: If True (default), infer sign from action type (for manual entry).
+                   If False, trust the provided amount sign (for imports).
+
+    Amount sign logic when auto_sign=True:
+    - Positive (money in): Deposit, Dividend, Interest
+    - Negative (money out): Withdraw, Tax, Fee
+    """
+    if auto_sign:
+        # Manual entry: determine amount sign based on action
+        amount = abs(data.amount)  # Start with absolute value
+        action_lower = data.action.lower()
+
+        # Negative actions (money out)
+        if action_lower in ['withdraw', 'tax', 'fee']:
+            amount = -amount
+        # Positive actions (money in): deposit, dividend, interest - keep positive
+    else:
+        # Import: trust the provided amount sign
+        amount = data.amount
+
     transaction = CashTransaction(
         user_id=user_id,
         date=data.date,
-        type=data.type,
-        amount=data.amount,
+        action=data.action,
+        amount=amount,
         currency=data.currency,
         notes=data.notes,
     )
@@ -123,10 +149,10 @@ async def update_cash_transaction(
 ) -> CashTransaction:
     """Update a cash transaction."""
     update_data = data.model_dump(exclude_unset=True)
-    
+
     for field, value in update_data.items():
         setattr(transaction, field, value)
-        
+
     await db.flush()
     await db.refresh(transaction)
     return transaction

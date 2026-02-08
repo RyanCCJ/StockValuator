@@ -117,7 +117,7 @@ export default function StockDetailPage({ params }: StockDetailPageProps) {
     return (
         <Tabs defaultValue="technical" className="max-w-7xl mx-auto space-y-6">
             {/* Header */}
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-bold">{upperSymbol}</h1>
                     {priceData && (
@@ -135,8 +135,8 @@ export default function StockDetailPage({ params }: StockDetailPageProps) {
                         </p>
                     )}
                 </div>
-                <div className="flex items-center gap-4">
-                    <TabsList>
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 w-full lg:w-auto">
+                    <TabsList className="w-full sm:w-auto overflow-x-auto">
                         <TabsTrigger value="technical">{t("technical_analysis")}</TabsTrigger>
                         {isEtf ? (
                             // ETF: 2 tabs - Technical, Fund Info
@@ -149,7 +149,7 @@ export default function StockDetailPage({ params }: StockDetailPageProps) {
                             </>
                         )}
                     </TabsList>
-                    <Button onClick={() => setIsAlertDialogOpen(true)}>
+                    <Button onClick={() => setIsAlertDialogOpen(true)} className="w-full sm:w-auto">
                         <Bell className="h-4 w-4 mr-2" />
                         {t("set_alert")}
                     </Button>
@@ -158,27 +158,29 @@ export default function StockDetailPage({ params }: StockDetailPageProps) {
 
             <TabsContent value="technical" className="space-y-4">
                 {/* Period and Indicator selectors - responsive row layout */}
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                    {/* Period buttons - left side */}
-                    <div className="flex gap-2">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    {/* Period buttons - scrollable on mobile */}
+                    <div className="flex gap-2 overflow-x-auto w-full sm:w-auto pb-2 sm:pb-0 no-scrollbar">
                         {(["1mo", "3mo", "6mo", "1y", "2y"] as const).map((period) => (
                             <Button
                                 key={period}
                                 variant={selectedPeriod === period ? "default" : "outline"}
                                 size="sm"
                                 onClick={() => setSelectedPeriod(period)}
+                                className="flex-none"
                             >
                                 {period.toUpperCase()}
                             </Button>
                         ))}
                     </div>
 
-                    {/* Indicator buttons - right side */}
-                    <div className="flex gap-2">
+                    {/* Indicator buttons - scrollable on mobile */}
+                    <div className="flex gap-2 overflow-x-auto w-full sm:w-auto pb-2 sm:pb-0 no-scrollbar">
                         <Button
                             variant={visibility.ma ? "default" : "outline"}
                             size="sm"
                             onClick={() => toggleIndicator("ma")}
+                            className="flex-none"
                         >
                             MA
                         </Button>

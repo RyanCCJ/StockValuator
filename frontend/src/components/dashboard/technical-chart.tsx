@@ -144,15 +144,26 @@ export function TechnicalChart({ data, visibility }: TechnicalChartProps) {
                 horzLines: { color: gridColor },
             },
             width: mainChartRef.current.clientWidth,
-            height: 400,
+            height: window.innerWidth < 640 ? 250 : 400,
             crosshair: {
-                mode: 1,
+                mode: 1, // CrosshairMode.Normal
             },
             timeScale: {
                 borderColor: borderColor,
             },
             rightPriceScale: {
                 borderColor: borderColor,
+            },
+            handleScale: {
+                axisPressedMouseMove: true,
+                mouseWheel: true,
+                pinch: true,
+            },
+            handleScroll: {
+                mouseWheel: true,
+                pressedMouseMove: true,
+                horzTouchDrag: true,
+                vertTouchDrag: false,
             },
         });
 
@@ -463,7 +474,10 @@ export function TechnicalChart({ data, visibility }: TechnicalChartProps) {
         // Handle resize
         const handleResize = () => {
             if (mainChartRef.current) {
-                mainChart.applyOptions({ width: mainChartRef.current.clientWidth });
+                mainChart.applyOptions({
+                    width: mainChartRef.current.clientWidth,
+                    height: window.innerWidth < 640 ? 250 : 400
+                });
             }
             charts.slice(1).forEach((chart, i) => {
                 const refs = [volumeChartRef, rsiChartRef, macdChartRef, kdChartRef];
@@ -498,8 +512,12 @@ export function TechnicalChart({ data, visibility }: TechnicalChartProps) {
                             className="absolute pointer-events-none z-50 px-3 py-2 rounded-md shadow-lg text-sm
                                        bg-background/90 dark:bg-card/90 border border-border backdrop-blur-sm"
                             style={{
-                                left: Math.min(tooltipData.x + 15, (mainChartRef.current?.clientWidth || 300) - 180),
-                                top: Math.max(tooltipData.y - 60, 10),
+                                left: window.innerWidth < 640
+                                    ? 10
+                                    : Math.min(tooltipData.x + 15, (mainChartRef.current?.clientWidth || 300) - 180),
+                                top: window.innerWidth < 640
+                                    ? 10
+                                    : Math.max(tooltipData.y - 60, 10),
                             }}
                         >
                             <div className="font-medium text-foreground mb-1">{tooltipData.date}</div>

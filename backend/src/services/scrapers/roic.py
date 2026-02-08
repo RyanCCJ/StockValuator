@@ -1,8 +1,7 @@
 from datetime import datetime, timezone
 from typing import Any
 
-from playwright.async_api import async_playwright
-
+from src.core.browser_pool import BrowserContextManager
 from src.services.scrapers.base import BaseScraper, FinancialMetrics, ScraperError
 
 
@@ -16,15 +15,7 @@ class RoicScraper(BaseScraper):
         return await self._do_fetch(symbol, url)
 
     async def _do_fetch(self, symbol: str, url: str) -> FinancialMetrics:
-        async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True)
-            context = await browser.new_context(
-                user_agent=(
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                    "Chrome/120.0.0.0 Safari/537.36"
-                )
-            )
+        async with BrowserContextManager() as (browser, context):
             page = await context.new_page()
 
             try:
@@ -58,8 +49,7 @@ class RoicScraper(BaseScraper):
                 return self._parse_table_data(symbol, table_data)
 
             finally:
-                await context.close()
-                await browser.close()
+                await page.close()
 
     def _parse_table_data(self, symbol: str, data: list[dict[str, Any]]) -> FinancialMetrics:
         sorted_data = sorted(data, key=lambda x: x.get("fiscal_year", 0))
@@ -121,7 +111,7 @@ class RoicScraper(BaseScraper):
         self, data: list[dict[str, Any]]
     ) -> list[dict[str, Any]] | None:
         """Calculate dividend yield as div_per_shr / average_price for each year.
-        
+
         Uses (pr_high + pr_low) / 2 as the average price for the year,
         which provides a more stable measure than just the closing price.
         """
@@ -131,23 +121,23 @@ class RoicScraper(BaseScraper):
             dividend = row.get("div_per_shr")
             pr_high = row.get("pr_high")
             pr_low = row.get("pr_low")
-            
+
             if year is None or dividend is None:
                 continue
-                
+
             div_val = self._safe_float(dividend)
             high_val = self._safe_float(pr_high)
             low_val = self._safe_float(pr_low)
-            
+
             if div_val is None or div_val <= 0:
                 continue
-            
+
             # Calculate average price for the year
             if high_val is not None and low_val is not None and high_val > 0 and low_val > 0:
                 avg_price = (high_val + low_val) / 2
                 yield_val = div_val / avg_price
                 result.append({"year": int(year), "value": yield_val})
-                
+
         return result if result else None
 
     def _extract_yearly_metric(

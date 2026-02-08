@@ -9,9 +9,10 @@ const API_BASE = "/api";
 interface TradeData {
     symbol: string;
     date: string;
-    type: "buy" | "sell";
+    action: string;  // e.g., "Buy", "Sell", "Stock Split"
     price: number;
     quantity: number;
+    amount?: number | null;  // Original amount with sign (from CSV)
     fees?: number;
     currency?: string;
     notes?: string;
@@ -20,6 +21,7 @@ interface TradeData {
 interface Trade extends TradeData {
     id: string;
     user_id: string;
+    amount: number | null;  // Original amount with sign
     created_at: string;
     notes?: string;
 }
@@ -29,12 +31,15 @@ interface TradeListResponse {
     total: number;
 }
 
+// Custom event for authentication errors (401)
+export const AUTH_ERROR_EVENT = "auth:unauthorized";
+
 async function fetchWithAuth(
     endpoint: string,
     accessToken: string,
     options: RequestInit = {}
 ): Promise<Response> {
-    return fetch(`${API_BASE}${endpoint}`, {
+    const response = await fetch(`${API_BASE}${endpoint}`, {
         ...options,
         headers: {
             "Content-Type": "application/json",
@@ -42,10 +47,21 @@ async function fetchWithAuth(
             ...options.headers,
         },
     });
+
+    // Dispatch event on 401 to trigger frontend logout
+    if (response.status === 401 && typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent(AUTH_ERROR_EVENT));
+    }
+
+    return response;
 }
 
-export async function getTrades(accessToken: string): Promise<TradeListResponse> {
-    const response = await fetchWithAuth("/trades", accessToken);
+export async function getTrades(
+    accessToken: string,
+    skip: number = 0,
+    limit: number = 50
+): Promise<TradeListResponse> {
+    const response = await fetchWithAuth(`/trades?skip=${skip}&limit=${limit}`, accessToken);
     if (!response.ok) {
         throw new Error("Failed to fetch trades");
     }
@@ -99,6 +115,7 @@ interface Holding {
     unrealized_pnl_percent: number;
     price_change: number | null;
     price_change_percent: number | null;
+    sector: string;
 }
 
 interface PortfolioSummary {
@@ -220,7 +237,7 @@ interface CashTransaction {
     id: string;
     user_id: string;
     date: string;
-    type: "deposit" | "withdraw";
+    action: string;  // e.g., "Deposit", "Withdraw", "Dividend", "Tax"
     amount: number;
     currency: string;
     notes?: string;
@@ -229,7 +246,7 @@ interface CashTransaction {
 
 interface CashTransactionData {
     date: string;
-    type: "deposit" | "withdraw";
+    action: string;  // e.g., "Deposit", "Withdraw", "Dividend", "Tax"
     amount: number;
     currency?: string;
     notes?: string;
@@ -241,8 +258,12 @@ interface CashTransactionListResponse {
     balance: number;
 }
 
-export async function getCashTransactions(accessToken: string): Promise<CashTransactionListResponse> {
-    const response = await fetchWithAuth("/cash", accessToken);
+export async function getCashTransactions(
+    accessToken: string,
+    skip: number = 0,
+    limit: number = 50
+): Promise<CashTransactionListResponse> {
+    const response = await fetchWithAuth(`/cash?skip=${skip}&limit=${limit}`, accessToken);
     if (!response.ok) {
         throw new Error("Failed to fetch cash transactions");
     }
@@ -341,6 +362,34 @@ export async function importCash(accessToken: string, file: File): Promise<Impor
     });
     if (!response.ok) {
         throw new Error("Failed to import cash transactions");
+    }
+    return response.json();
+}
+
+// Unified Brokerage Importer API
+export interface ImporterResult {
+    trades_created: number;
+    cash_transactions_created: number;
+    duplicates_skipped: number;
+    rows_skipped: number;
+    warnings: string[];
+    errors: Array<{ error: string; transaction?: Record<string, unknown> }>;
+}
+
+export async function uploadBrokerageFile(accessToken: string, file: File): Promise<ImporterResult> {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const response = await fetch(`${API_BASE}/importer/upload`, {
+        method: "POST",
+        headers: {
+            Authorization: `Bearer ${accessToken}`,
+        },
+        body: formData,
+    });
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || "Failed to import brokerage file");
     }
     return response.json();
 }
@@ -554,7 +603,7 @@ export type {
     PriceAlert, AlertListResponse, CreateAlertData,
     ValueAnalysisResponse, ScoreBreakdown, ConfidenceScore, DividendScore,
     ValueScoreType, FairValueEstimate, AIScoreResponse, YearValue,
-    NewsItem, ResearchItem, NewsAndResearchResponse
+    NewsItem, ResearchItem, NewsAndResearchResponse,
 };
 
 interface ScoreBreakdown {
@@ -671,3 +720,120 @@ export async function getAIPrompt(
     }
     return response.json();
 }
+
+// Market Cycle API
+interface IndicatorStatus {
+    name: string;
+    value: number | null;
+    secondary_value?: number | null;
+    status: string;
+    description: string;
+}
+
+interface MarketPulseItem {
+    symbol: string;
+    name: string;
+    price: number | null;
+    change_percent: number | null;
+}
+
+interface MarketCycleStatusResponse {
+    snapshot_date: string;
+    last_updated: string;
+    phase: string;
+    phase_number: number;
+    risk_level: string;
+    total_score: number;
+    market_pulse: MarketPulseItem[];
+    indicators: IndicatorStatus[];
+    sp500_price: number | null;
+    sp500_ma200: number | null;
+    shiller_pe: number | null;
+    yield_spread: number | null;
+    vix: number | null;
+}
+
+export async function getMarketCycleStatus(): Promise<MarketCycleStatusResponse> {
+    const response = await fetch(`${API_BASE}/market-cycle/status`);
+    if (!response.ok) {
+        throw new Error("Failed to fetch market cycle status");
+    }
+    return response.json();
+}
+
+export type {
+    MarketCycleStatusResponse,
+    MarketPulseItem,
+    IndicatorStatus,
+};
+
+// Market Pulse Historical Data API
+interface IndexHistoricalDataPoint {
+    date: string;
+    close: number;
+}
+
+interface IndexHistoricalSeries {
+    symbol: string;
+    name: string;
+    data: IndexHistoricalDataPoint[];
+}
+
+interface MarketPulseHistoricalResponse {
+    indices: IndexHistoricalSeries[];
+}
+
+export async function getMarketPulseHistory(
+    period: "1y" | "6mo" | "3mo" | "1mo" = "1y"
+): Promise<MarketPulseHistoricalResponse> {
+    const response = await fetch(`${API_BASE}/market-cycle/pulse-history?period=${period}`);
+    if (!response.ok) {
+        throw new Error("Failed to fetch market pulse history");
+    }
+    return response.json();
+}
+
+// Historical Trends API
+interface OHLCDataPoint {
+    time: string;
+    open: number;
+    high: number;
+    low: number;
+    close: number;
+}
+
+interface LineDataPoint {
+    time: string;
+    value: number;
+}
+
+interface HistoricalTrendData {
+    indicator: string;
+    chart_type: "candlestick" | "line";
+    ohlc_data: OHLCDataPoint[] | null;
+    line_data: LineDataPoint[] | null;
+}
+
+interface HistoricalTrendsResponse {
+    trends: HistoricalTrendData[];
+}
+
+export async function getHistoricalTrends(
+    period: "2y" | "1y" | "6mo" | "3mo" = "1y"
+): Promise<HistoricalTrendsResponse> {
+    const response = await fetch(`${API_BASE}/market-cycle/trends-history?period=${period}`);
+    if (!response.ok) {
+        throw new Error("Failed to fetch historical trends");
+    }
+    return response.json();
+}
+
+export type {
+    IndexHistoricalDataPoint,
+    IndexHistoricalSeries,
+    MarketPulseHistoricalResponse,
+    OHLCDataPoint,
+    LineDataPoint,
+    HistoricalTrendData,
+    HistoricalTrendsResponse,
+};

@@ -7,7 +7,8 @@ from typing import Any
 
 import httpx
 
-from src.core.cache import cache_get, cache_set
+from src.core.cache import cache_get, cache_set, ScrapeLocker
+from src.core.browser_pool import BrowserContextManager
 
 
 class ScraperError(Exception):
@@ -162,6 +163,11 @@ class BaseScraper(ABC):
         return f"scraper:{self.SOURCE_NAME}:{symbol.upper()}"
 
     async def get_data(self, symbol: str, force_refresh: bool = False) -> FinancialMetrics:
+        """
+        Get financial metrics for a symbol with caching and distributed locking.
+
+        Uses distributed locking to prevent duplicate scrapes for the same symbol.
+        """
         symbol = symbol.upper()
         cache_key = self._cache_key(symbol)
 
@@ -170,9 +176,26 @@ class BaseScraper(ABC):
             if cached:
                 return FinancialMetrics.from_dict(cached)
 
-        metrics = await self._fetch_and_parse(symbol)
-        await cache_set(cache_key, metrics.to_dict(), ttl=self.CACHE_TTL)
-        return metrics
+        # Use distributed lock to prevent duplicate scrapes
+        async with ScrapeLocker(f"{self.SOURCE_NAME}:{symbol}") as acquired:
+            if acquired:
+                # We got the lock, do the actual scraping
+                metrics = await self._fetch_and_parse(symbol)
+                await cache_set(cache_key, metrics.to_dict(), ttl=self.CACHE_TTL)
+                return metrics
+            else:
+                # Another request is already scraping, wait and check cache
+                import asyncio
+                for _ in range(10):  # Wait up to 10 seconds
+                    await asyncio.sleep(1)
+                    cached = await cache_get(cache_key)
+                    if cached:
+                        return FinancialMetrics.from_dict(cached)
+
+                # Timeout waiting for other request, proceed with our own scrape
+                metrics = await self._fetch_and_parse(symbol)
+                await cache_set(cache_key, metrics.to_dict(), ttl=self.CACHE_TTL)
+                return metrics
 
     @abstractmethod
     async def _fetch_and_parse(self, symbol: str) -> FinancialMetrics:

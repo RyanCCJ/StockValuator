@@ -1,27 +1,21 @@
 """Market data service with yfinance and Redis caching."""
 
+import asyncio
 import json
+import logging
 from datetime import UTC
 from decimal import Decimal
 
 import yfinance as yf
 
 from src.core.cache import cache_get, cache_set
+from src.core.yfinance_async import run_in_yf_executor
+
+logger = logging.getLogger(__name__)
 
 
-async def get_stock_price(symbol: str) -> dict | None:
-    """
-    Get current stock price for a symbol.
-    Uses Redis caching with 5-minute TTL.
-    """
-    cache_key = f"price:{symbol.upper()}"
-
-    # Try cache first
-    cached = await cache_get(cache_key)
-    if cached:
-        return json.loads(cached)
-
-    # Fetch from yfinance
+def _sync_get_stock_price(symbol: str) -> dict | None:
+    """Synchronous helper to fetch stock price from yfinance."""
     try:
         ticker = yf.Ticker(symbol)
         info = ticker.fast_info
@@ -43,20 +37,55 @@ async def get_stock_price(symbol: str) -> dict | None:
             price_data["change"] = round(change, 2)
             price_data["change_percent"] = round(change_percent, 2)
 
-        # Cache for 5 minutes
-        await cache_set(cache_key, json.dumps(price_data), ttl=300)
-
         return price_data
     except Exception:
         return None
 
 
+async def get_stock_price(symbol: str) -> dict | None:
+    """
+    Get current stock price for a symbol.
+    Uses Redis caching with 5-minute TTL.
+    """
+    cache_key = f"price:{symbol.upper()}"
+
+    # Try cache first
+    cached = await cache_get(cache_key)
+    if cached:
+        return json.loads(cached)
+
+    # Fetch from yfinance (non-blocking)
+    price_data = await run_in_yf_executor(_sync_get_stock_price, symbol)
+
+    if price_data:
+        # Cache for 5 minutes
+        await cache_set(cache_key, json.dumps(price_data), ttl=300)
+
+    return price_data
+
+
 async def get_stock_prices_batch(symbols: list[str]) -> dict[str, dict | None]:
-    """Get prices for multiple symbols."""
-    results = {}
-    for symbol in symbols:
-        results[symbol.upper()] = await get_stock_price(symbol)
-    return results
+    """Get prices for multiple symbols concurrently."""
+    tasks = [get_stock_price(s) for s in symbols]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    return {
+        s.upper(): r if not isinstance(r, Exception) else None
+        for s, r in zip(symbols, results)
+    }
+
+
+def _sync_get_exchange_rate(pair: str) -> float | None:
+    """Synchronous helper to fetch exchange rate from yfinance."""
+    try:
+        ticker = yf.Ticker(pair)
+        info = ticker.fast_info
+
+        if not info or info.last_price is None:
+            return None
+
+        return float(info.last_price)
+    except Exception:
+        return None
 
 
 async def get_exchange_rate(from_currency: str, to_currency: str) -> Decimal | None:
@@ -74,57 +103,35 @@ async def get_exchange_rate(from_currency: str, to_currency: str) -> Decimal | N
     if cached:
         return Decimal(cached)
 
-    # Fetch from yfinance using currency pair
-    try:
-        pair = f"{from_currency.upper()}{to_currency.upper()}=X"
-        ticker = yf.Ticker(pair)
-        info = ticker.fast_info
+    # Fetch from yfinance using currency pair (non-blocking)
+    pair = f"{from_currency.upper()}{to_currency.upper()}=X"
+    rate_float = await run_in_yf_executor(_sync_get_exchange_rate, pair)
 
-        if not info or info.last_price is None:
-            return None
-
-        rate = Decimal(str(info.last_price))
-
-        # Cache for 1 hour
-        await cache_set(cache_key, str(rate), ttl=3600)
-
-        return rate
-    except Exception:
+    if rate_float is None:
         return None
 
+    rate = Decimal(str(rate_float))
 
-async def get_technical_data(symbol: str, period: str = "1y") -> dict | None:
-    """
-    Get historical OHLCV data with calculated technical indicators.
-    Uses Redis caching with 4-hour TTL.
-    
-    Args:
-        symbol: Stock ticker symbol
-        period: Data period (1mo, 3mo, 6mo, 1y, 2y)
-        
-    Returns:
-        Dictionary with OHLCV data and calculated indicators
-    """
+    # Cache for 1 hour
+    await cache_set(cache_key, str(rate), ttl=3600)
+
+    return rate
+
+
+def _sync_get_technical_data(symbol: str, period: str) -> tuple[list, dict] | None:
+    """Synchronous helper to fetch technical data from yfinance."""
     from src.services.technical_analysis import calculate_all_indicators
-    
-    symbol = symbol.upper()
-    cache_key = f"technical:{symbol}:{period}"
-    
-    # Try cache first
-    cached = await cache_get(cache_key)
-    if cached:
-        return json.loads(cached)
-    
+
     try:
         ticker = yf.Ticker(symbol)
         df = ticker.history(period=period, interval="1d")
-        
+
         if df.empty:
             return None
-        
+
         # Reset index to get date as a column
         df = df.reset_index()
-        
+
         # Build OHLCV list
         ohlcv = []
         for _, row in df.iterrows():
@@ -136,57 +143,65 @@ async def get_technical_data(symbol: str, period: str = "1y") -> dict | None:
                 "close": round(float(row["Close"]), 2),
                 "volume": int(row["Volume"]),
             })
-        
+
         # Calculate indicators
         indicators = calculate_all_indicators(df)
-        
-        result = {
-            "symbol": symbol,
-            "ohlcv": ohlcv,
-            "indicators": indicators,
-        }
-        
-        # Cache for 4 hours (14400 seconds)
-        await cache_set(cache_key, json.dumps(result), ttl=14400)
-        
-        return result
+
+        return ohlcv, indicators
     except Exception:
         return None
 
 
-async def get_fundamental_data(symbol: str, db=None) -> dict | None:
+async def get_technical_data(symbol: str, period: str = "1y") -> dict | None:
     """
-    Get fundamental data for a stock/crypto or ETF.
-    Uses Redis caching with 24-hour TTL.
-    
-    Returns different fields based on asset type:
-    - Stocks/Crypto: sector, industry, PE ratios, EPS, analyst rating, institutional holders
-    - ETFs: description, top holdings, sector weightings
-    
+    Get historical OHLCV data with calculated technical indicators.
+    Uses Redis caching with 4-hour TTL.
+
     Args:
-        symbol: Stock/ETF ticker symbol
-        db: Database session (optional, currently not used)
-        
+        symbol: Stock ticker symbol
+        period: Data period (1mo, 3mo, 6mo, 1y, 2y)
+
     Returns:
-        Dictionary with fundamental data including is_etf flag
+        Dictionary with OHLCV data and calculated indicators
     """
-    from datetime import datetime
-    
     symbol = symbol.upper()
-    cache_key = f"fundamental:{symbol}"
-    
+    cache_key = f"technical:{symbol}:{period}"
+
     # Try cache first
     cached = await cache_get(cache_key)
     if cached:
         return json.loads(cached)
-    
+
+    # Fetch from yfinance (non-blocking)
+    data = await run_in_yf_executor(_sync_get_technical_data, symbol, period)
+
+    if data is None:
+        return None
+
+    ohlcv, indicators = data
+    result = {
+        "symbol": symbol,
+        "ohlcv": ohlcv,
+        "indicators": indicators,
+    }
+
+    # Cache for 4 hours (14400 seconds)
+    await cache_set(cache_key, json.dumps(result), ttl=14400)
+
+    return result
+
+
+def _sync_get_fundamental_data(symbol: str) -> dict | None:
+    """Synchronous helper to fetch fundamental data from yfinance."""
+    from datetime import datetime
+
     try:
         ticker = yf.Ticker(symbol)
         info = ticker.info
-        
+
         if not info:
             return None
-        
+
         # Determine if ETF by checking quoteType (more reliable than funds_data presence)
         is_etf = info.get("quoteType") == "ETF"
         funds_data = None
@@ -196,11 +211,12 @@ async def get_fundamental_data(symbol: str, db=None) -> dict | None:
                     funds_data = ticker.funds_data
             except Exception:
                 pass
-        
+
         # Common fields for both types
         fundamental_data = {
             "symbol": symbol,
             "is_etf": is_etf,
+            "quote_type": info.get("quoteType"),
             "long_name": info.get("longName"),
             "market_cap": info.get("marketCap"),
             "beta": info.get("beta"),
@@ -210,19 +226,19 @@ async def get_fundamental_data(symbol: str, db=None) -> dict | None:
             "dividend_yield": info.get("dividendYield"),
             "last_updated": datetime.now(UTC).isoformat(),
         }
-        
+
         if is_etf:
             # ETF-specific fields
             fundamental_data["beta_3_year"] = info.get("beta3Year")
             fundamental_data["expense_ratio"] = info.get("netExpenseRatio")
-            
+
             # Description from funds_data
             try:
                 if funds_data and hasattr(funds_data, "description"):
                     fundamental_data["description"] = funds_data.description
             except Exception:
                 fundamental_data["description"] = None
-            
+
             # Top Holdings
             top_holdings = []
             try:
@@ -237,7 +253,7 @@ async def get_fundamental_data(symbol: str, db=None) -> dict | None:
             except Exception:
                 pass
             fundamental_data["top_holdings"] = top_holdings
-            
+
             # Sector Weightings
             sector_weightings = []
             try:
@@ -261,7 +277,7 @@ async def get_fundamental_data(symbol: str, db=None) -> dict | None:
             except Exception:
                 pass
             fundamental_data["sector_weightings"] = sector_weightings
-            
+
         else:
             # Stock/Crypto-specific fields
             fundamental_data["description"] = info.get("longBusinessSummary") or info.get("description")
@@ -276,7 +292,7 @@ async def get_fundamental_data(symbol: str, db=None) -> dict | None:
             fundamental_data["revenue_growth"] = info.get("revenueGrowth")
             fundamental_data["analyst_rating"] = info.get("averageAnalystRating")
             fundamental_data["book_value"] = info.get("bookValue")
-            
+
             # Institutional Holders
             institutional_holders = []
             try:
@@ -294,84 +310,102 @@ async def get_fundamental_data(symbol: str, db=None) -> dict | None:
             except Exception:
                 pass
             fundamental_data["institutional_holders"] = institutional_holders
-        
-        # Cache for 24 hours (86400 seconds)
-        await cache_set(cache_key, json.dumps(fundamental_data), ttl=86400)
-        
+
         return fundamental_data
-        
+
     except Exception:
         return None
 
+
+async def get_fundamental_data(symbol: str, db=None) -> dict | None:
+    """
+    Get fundamental data for a stock/crypto or ETF.
+    Uses Redis caching with 24-hour TTL.
+
+    Returns different fields based on asset type:
+    - Stocks/Crypto: sector, industry, PE ratios, EPS, analyst rating, institutional holders
+    - ETFs: description, top holdings, sector weightings
+
+    Args:
+        symbol: Stock/ETF ticker symbol
+        db: Database session (optional, currently not used)
+
+    Returns:
+        Dictionary with fundamental data including is_etf flag
+    """
+    symbol = symbol.upper()
+    cache_key = f"fundamental:{symbol}"
+
+    # Try cache first
+    cached = await cache_get(cache_key)
+    if cached:
+        return json.loads(cached)
+
+    # Fetch from yfinance (non-blocking)
+    fundamental_data = await run_in_yf_executor(_sync_get_fundamental_data, symbol)
+
+    if fundamental_data is None:
+        return None
+
+    # Cache for 24 hours (86400 seconds)
+    await cache_set(cache_key, json.dumps(fundamental_data), ttl=86400)
+
+    return fundamental_data
+
+
+def _sync_get_sp500_yield() -> float:
+    """Synchronous helper to fetch S&P 500 yield from yfinance."""
+    try:
+        ticker = yf.Ticker("SPY")
+        info = ticker.info
+
+        # Prefer dividendYield (percent) but fallback to trailingAnnualDividendYield (decimal)
+        div_yield = info.get("dividendYield")
+
+        if div_yield is not None:
+            # yfinance returns percent for dividendYield (e.g., 1.07 for 1.07%)
+            return float(div_yield) / 100
+        else:
+            # trailingAnnualDividendYield is usually a decimal (e.g., 0.008)
+            trailing = info.get("trailingAnnualDividendYield")
+            if trailing is not None:
+                return float(trailing)
+            else:
+                # Fallback to historical average if data unavailable
+                return 0.015
+
+    except Exception:
+        # Fallback on error
+        return 0.015
 
 
 async def get_sp500_yield(db=None) -> float:
     """
     Get S&P 500 dividend yield using SPY as proxy.
     Uses Redis caching with 24-hour TTL.
-    
+
     Returns:
         Float value of yield (e.g. 0.015 for 1.5%)
     """
     cache_key = "sp500_yield"
-    
+
     # Try cache first
     cached = await cache_get(cache_key)
     if cached:
         return float(cached)
-        
-    try:
-        ticker = yf.Ticker("SPY")
-        info = ticker.info
-        
-        # Prefer dividendYield (percent) but fallback to trailingAnnualDividendYield (decimal)
-        div_yield = info.get("dividendYield")
-        
-        if div_yield is not None:
-            # yfinance returns percent for dividendYield (e.g., 1.07 for 1.07%)
-            yield_val = float(div_yield) / 100
-        else:
-            # trailingAnnualDividendYield is usually a decimal (e.g., 0.008)
-            trailing = info.get("trailingAnnualDividendYield")
-            if trailing is not None:
-                yield_val = float(trailing)
-            else:
-                # Fallback to historical average if data unavailable
-                yield_val = 0.015
-                
-        # Cache for 24 hours (86400 seconds)
-        await cache_set(cache_key, str(yield_val), ttl=86400)
-        
-        return yield_val
-        
-    except Exception:
-        # Fallback on error
-        return 0.015
+
+    # Fetch from yfinance (non-blocking)
+    yield_val = await run_in_yf_executor(_sync_get_sp500_yield)
+
+    # Cache for 24 hours (86400 seconds)
+    await cache_set(cache_key, str(yield_val), ttl=86400)
+
+    return yield_val
 
 
-async def get_company_news_and_research(symbol: str) -> dict | None:
-    """
-    Get news and research reports for a stock symbol.
-    Uses Redis caching with 1-hour TTL.
-
-    Uses yfinance.Search with include_research=True to fetch both
-    news articles and research reports.
-
-    Args:
-        symbol: Stock ticker symbol
-
-    Returns:
-        Dictionary with 'news' and 'research' lists, or None on error
-    """
+def _sync_get_company_news_and_research(symbol: str) -> dict | None:
+    """Synchronous helper to fetch news and research from yfinance."""
     from datetime import datetime
-
-    symbol = symbol.upper()
-    cache_key = f"news:{symbol}"
-
-    # Try cache first
-    cached = await cache_get(cache_key)
-    if cached:
-        return json.loads(cached)
 
     try:
         # Use yfinance.Search with include_research=True
@@ -428,19 +462,48 @@ async def get_company_news_and_research(symbol: str) -> dict | None:
                     "published_at": published_at,
                 })
 
-        result = {
+        return {
             "symbol": symbol,
             "news": news_items,
             "research": research_items,
         }
 
-        # Cache for 1 hour (3600 seconds)
-        await cache_set(cache_key, json.dumps(result), ttl=3600)
-
-        return result
-
     except Exception:
         return None
+
+
+async def get_company_news_and_research(symbol: str) -> dict | None:
+    """
+    Get news and research reports for a stock symbol.
+    Uses Redis caching with 1-hour TTL.
+
+    Uses yfinance.Search with include_research=True to fetch both
+    news articles and research reports.
+
+    Args:
+        symbol: Stock ticker symbol
+
+    Returns:
+        Dictionary with 'news' and 'research' lists, or None on error
+    """
+    symbol = symbol.upper()
+    cache_key = f"news:{symbol}"
+
+    # Try cache first
+    cached = await cache_get(cache_key)
+    if cached:
+        return json.loads(cached)
+
+    # Fetch from yfinance (non-blocking)
+    result = await run_in_yf_executor(_sync_get_company_news_and_research, symbol)
+
+    if result is None:
+        return None
+
+    # Cache for 1 hour (3600 seconds)
+    await cache_set(cache_key, json.dumps(result), ttl=3600)
+
+    return result
 
 
 def _extract_thumbnail(item: dict) -> str | None:
@@ -454,4 +517,3 @@ def _extract_thumbnail(item: dict) -> str | None:
         return None
     except Exception:
         return None
-

@@ -42,15 +42,44 @@ async def get_trade_by_id(db: AsyncSession, trade_id: UUID, user_id: UUID) -> Tr
     return result.scalar_one_or_none()
 
 
-async def create_trade(db: AsyncSession, user_id: UUID, trade_data: TradeCreate) -> Trade:
-    """Create a new trade for a user."""
+async def create_trade(
+    db: AsyncSession, user_id: UUID, trade_data: TradeCreate, *, auto_sign: bool = True
+) -> Trade:
+    """Create a new trade for a user.
+
+    Args:
+        db: Database session.
+        user_id: ID of the user creating the trade.
+        trade_data: Trade data.
+        auto_sign: If True (default), calculate amount sign from action type (for manual entry).
+                   If False, trust the provided amount (for imports).
+    """
+    amount = trade_data.amount
+
+    # First: calculate amount from price * quantity if not provided
+    if amount is None:
+        amount = trade_data.price * trade_data.quantity
+
+    # Then: apply action-based sign transformation only when auto_sign is True
+    if auto_sign:
+        action_lower = trade_data.action.lower()
+        if action_lower in ['buy', 'reinvest']:
+            amount = -abs(amount)
+        elif action_lower in ['sell']:
+            amount = abs(amount)
+        else:
+            # Neutral actions (Stock Split, etc.): no cash impact
+            amount = None
+    # When auto_sign=False: use the amount as-is (trusted source)
+
     trade = Trade(
         user_id=user_id,
         symbol=trade_data.symbol.upper(),
         date=trade_data.date,
-        type=trade_data.type,
+        action=trade_data.action,
         price=trade_data.price,
         quantity=trade_data.quantity,
+        amount=amount,
         fees=trade_data.fees,
         currency=trade_data.currency,
         notes=trade_data.notes,

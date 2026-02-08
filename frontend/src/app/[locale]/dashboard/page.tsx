@@ -4,34 +4,25 @@ import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ColumnDef } from "@tanstack/react-table";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from "@/components/ui/table";
 import { KPICards } from "@/components/dashboard/kpi-cards";
 import { OverviewCharts } from "@/components/dashboard/overview-charts";
-import { ArrowUpDown, ArrowUp, ArrowDown, Loader2 } from "lucide-react";
+import { DataTable, DataTableSearch } from "@/components/ui/data-table";
+import { DataTableColumnHeader } from "@/components/ui/data-table-column-header";
+import { Loader2 } from "lucide-react";
 import { getPortfolioSummary, PortfolioSummary, Holding } from "@/services/api";
 import { useCurrency } from "@/context/currency-context";
 
 export default function DashboardPage() {
     const t = useTranslations("Dashboard");
-    const tCommon = useTranslations("Common");
     const { formatMoney } = useCurrency();
     const { data: session, status } = useSession();
     const [portfolio, setPortfolio] = useState<PortfolioSummary | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [sortConfig, setSortConfig] = useState<{
-        key: keyof Holding | null;
-        direction: "asc" | "desc";
-    }>({ key: "current_value", direction: "desc" });
+    const [searchQuery, setSearchQuery] = useState("");
 
     const accessToken = (session as { accessToken?: string })?.accessToken;
 
@@ -67,48 +58,102 @@ export default function DashboardPage() {
         redirect("/login");
     }
 
-    // formatMoney is now provided by useCurrency()
-
     const formatPercent = (value: number) => {
         const sign = value >= 0 ? "+" : "";
         return `${sign}${value.toFixed(2)}%`;
     };
 
-    const handleSort = (key: keyof Holding) => {
-        setSortConfig((current) => ({
-            key,
-            direction:
-                current.key === key && current.direction === "asc" ? "desc" : "asc",
-        }));
-    };
-
-    const sortedHoldings = [...(portfolio?.holdings || [])].sort((a, b) => {
-        if (!sortConfig.key) return 0;
-
-        const aValue = a[sortConfig.key];
-        const bValue = b[sortConfig.key];
-
-        if (aValue === null && bValue === null) return 0;
-        if (aValue === null) return 1;
-        if (bValue === null) return -1;
-
-        if (aValue < bValue!) {
-            return sortConfig.direction === "asc" ? -1 : 1;
-        }
-        if (aValue > bValue!) {
-            return sortConfig.direction === "asc" ? 1 : -1;
-        }
-        return 0;
-    });
+    // Define columns for Holdings DataTable
+    const columns: ColumnDef<Holding>[] = [
+        {
+            accessorKey: "symbol",
+            header: ({ column }) => (
+                <DataTableColumnHeader column={column} title={t("table_symbol")} className="w-full justify-center" />
+            ),
+            cell: ({ row }) => (
+                <div className="text-center font-medium">{row.getValue("symbol")}</div>
+            ),
+        },
+        {
+            accessorKey: "quantity",
+            header: ({ column }) => (
+                <DataTableColumnHeader column={column} title={t("table_quantity")} className="w-full justify-center" />
+            ),
+            cell: ({ row }) => (
+                <div className="text-center">{(row.getValue("quantity") as number).toFixed(2)}</div>
+            ),
+        },
+        {
+            accessorKey: "avg_cost",
+            header: ({ column }) => (
+                <DataTableColumnHeader column={column} title={t("table_avg_cost")} className="w-full justify-center" />
+            ),
+            cell: ({ row }) => (
+                <div className="text-center">{formatMoney(row.getValue("avg_cost") as number)}</div>
+            ),
+        },
+        {
+            accessorKey: "current_price",
+            header: ({ column }) => (
+                <DataTableColumnHeader column={column} title={t("table_price")} className="w-full justify-center" />
+            ),
+            cell: ({ row }) => {
+                const price = row.getValue("current_price") as number | null;
+                return (
+                    <div className="text-center">{price ? formatMoney(price) : "N/A"}</div>
+                );
+            },
+        },
+        {
+            accessorKey: "current_value",
+            header: ({ column }) => (
+                <DataTableColumnHeader column={column} title={t("table_value")} className="w-full justify-center" />
+            ),
+            cell: ({ row }) => (
+                <div className="text-center">{formatMoney(row.getValue("current_value") as number)}</div>
+            ),
+        },
+        {
+            accessorKey: "unrealized_pnl",
+            header: ({ column }) => (
+                <DataTableColumnHeader column={column} title={t("table_pnl")} className="w-full justify-center" />
+            ),
+            cell: ({ row }) => {
+                const pnl = row.getValue("unrealized_pnl") as number;
+                const pnlPercent = row.original.unrealized_pnl_percent;
+                return (
+                    <div className={`text-center ${pnl >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
+                        {formatMoney(pnl)}
+                        <span className="text-xs ml-1">({formatPercent(pnlPercent)})</span>
+                    </div>
+                );
+            },
+        },
+        {
+            accessorKey: "price_change_percent",
+            header: ({ column }) => (
+                <DataTableColumnHeader column={column} title={t("table_change")} className="w-full justify-center" />
+            ),
+            cell: ({ row }) => {
+                const change = row.original.price_change || 0;
+                const changePercent = row.getValue("price_change_percent") as number | null;
+                return (
+                    <div className={`text-center ${change >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
+                        {changePercent !== null ? formatPercent(changePercent) : "N/A"}
+                    </div>
+                );
+            },
+        },
+    ];
 
     return (
         <div className="max-w-7xl mx-auto space-y-6">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-bold">{t('title')}</h1>
                     <p className="text-muted-foreground">{t('welcome_back', { email: session.user?.email || '' })}</p>
                 </div>
-                <Button onClick={fetchPortfolio} variant="outline" size="sm">
+                <Button onClick={fetchPortfolio} variant="outline" size="sm" className="self-start sm:self-auto">
                     {t('refresh')}
                 </Button>
             </div>
@@ -140,9 +185,13 @@ export default function DashboardPage() {
 
                     {/* Holdings Table */}
                     <Card>
-                        <CardHeader>
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
                             <CardTitle>{t('holdings_title')}</CardTitle>
-                            <CardDescription>{t('holdings_subtitle')}</CardDescription>
+                            <DataTableSearch
+                                value={searchQuery}
+                                onChange={setSearchQuery}
+                                placeholder={t("table_symbol")}
+                            />
                         </CardHeader>
                         <CardContent>
                             {!portfolio?.holdings || portfolio.holdings.length === 0 ? (
@@ -150,124 +199,13 @@ export default function DashboardPage() {
                                     {t('no_holdings')}
                                 </div>
                             ) : (
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead>
-                                                <Button variant="ghost" onClick={() => handleSort("symbol")}>
-                                                    {t('table_symbol')}
-                                                    {sortConfig.key === "symbol" ? (
-                                                        sortConfig.direction === "asc" ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />
-                                                    ) : (
-                                                        <ArrowUpDown className="ml-2 h-4 w-4" />
-                                                    )}
-                                                </Button>
-                                            </TableHead>
-                                            <TableHead className="text-right">
-                                                <Button variant="ghost" onClick={() => handleSort("quantity")}>
-                                                    {t('table_quantity')}
-                                                    {sortConfig.key === "quantity" ? (
-                                                        sortConfig.direction === "asc" ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />
-                                                    ) : (
-                                                        <ArrowUpDown className="ml-2 h-4 w-4" />
-                                                    )}
-                                                </Button>
-                                            </TableHead>
-                                            <TableHead className="text-right">
-                                                <Button variant="ghost" onClick={() => handleSort("avg_cost")}>
-                                                    {t('table_avg_cost')}
-                                                    {sortConfig.key === "avg_cost" ? (
-                                                        sortConfig.direction === "asc" ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />
-                                                    ) : (
-                                                        <ArrowUpDown className="ml-2 h-4 w-4" />
-                                                    )}
-                                                </Button>
-                                            </TableHead>
-                                            <TableHead className="text-right">
-                                                <Button variant="ghost" onClick={() => handleSort("current_price")}>
-                                                    {t('table_price')}
-                                                    {sortConfig.key === "current_price" ? (
-                                                        sortConfig.direction === "asc" ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />
-                                                    ) : (
-                                                        <ArrowUpDown className="ml-2 h-4 w-4" />
-                                                    )}
-                                                </Button>
-                                            </TableHead>
-                                            <TableHead className="text-right">
-                                                <Button variant="ghost" onClick={() => handleSort("current_value")}>
-                                                    {t('table_value')}
-                                                    {sortConfig.key === "current_value" ? (
-                                                        sortConfig.direction === "asc" ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />
-                                                    ) : (
-                                                        <ArrowUpDown className="ml-2 h-4 w-4" />
-                                                    )}
-                                                </Button>
-                                            </TableHead>
-                                            <TableHead className="text-right">
-                                                <Button variant="ghost" onClick={() => handleSort("unrealized_pnl")}>
-                                                    {t('table_pnl')}
-                                                    {sortConfig.key === "unrealized_pnl" ? (
-                                                        sortConfig.direction === "asc" ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />
-                                                    ) : (
-                                                        <ArrowUpDown className="ml-2 h-4 w-4" />
-                                                    )}
-                                                </Button>
-                                            </TableHead>
-                                            <TableHead className="text-right">
-                                                <Button variant="ghost" onClick={() => handleSort("price_change_percent")}>
-                                                    {t('table_change')}
-                                                    {sortConfig.key === "price_change_percent" ? (
-                                                        sortConfig.direction === "asc" ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />
-                                                    ) : (
-                                                        <ArrowUpDown className="ml-2 h-4 w-4" />
-                                                    )}
-                                                </Button>
-                                            </TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {sortedHoldings.map((holding) => (
-                                            <TableRow key={holding.symbol}>
-                                                <TableCell className="font-medium">{holding.symbol}</TableCell>
-                                                <TableCell className="text-right">
-                                                    {holding.quantity.toFixed(2)}
-                                                </TableCell>
-                                                <TableCell className="text-right">
-                                                    {formatMoney(holding.avg_cost)}
-                                                </TableCell>
-                                                <TableCell className="text-right">
-                                                    {holding.current_price
-                                                        ? formatMoney(holding.current_price)
-                                                        : "N/A"}
-                                                </TableCell>
-                                                <TableCell className="text-right">
-                                                    {formatMoney(holding.current_value)}
-                                                </TableCell>
-                                                <TableCell
-                                                    className={`text-right ${holding.unrealized_pnl >= 0
-                                                        ? "text-green-600 dark:text-green-400"
-                                                        : "text-red-600 dark:text-red-400"
-                                                        }`}
-                                                >
-                                                    {formatMoney(holding.unrealized_pnl)}
-                                                    <span className="text-xs ml-1">
-                                                        ({formatPercent(holding.unrealized_pnl_percent)})
-                                                    </span>
-                                                </TableCell>
-                                                <TableCell
-                                                    className={`text-right ${(holding.price_change || 0) >= 0
-                                                        ? "text-green-600 dark:text-green-400"
-                                                        : "text-red-600 dark:text-red-400"
-                                                        }`}
-                                                >
-                                                    {holding.price_change_percent !== null
-                                                        ? formatPercent(holding.price_change_percent)
-                                                        : "N/A"}
-                                                </TableCell>
-                                            </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
+                                <DataTable
+                                    columns={columns}
+                                    data={portfolio.holdings}
+                                    externalSearch={searchQuery}
+                                    onExternalSearchChange={setSearchQuery}
+                                    centered={true}
+                                />
                             )}
                         </CardContent>
                     </Card>

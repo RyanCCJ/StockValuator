@@ -11,8 +11,6 @@ from openpyxl import load_workbook
 from pydantic import ValidationError
 
 from src.api.deps import CurrentUser, DbSession
-from src.models.trade import TradeType
-from src.models.cash import CashTransactionType
 from src.schemas.trade import TradeCreate
 from src.schemas.cash import CashTransactionCreate
 from src.services.trade_service import create_trade
@@ -23,7 +21,7 @@ router = APIRouter(prefix="/import", tags=["import"])
 
 class ImportResult:
     """Result of an import operation."""
-    
+
     def __init__(self):
         self.success_count = 0
         self.errors: list[dict[str, Any]] = []
@@ -38,26 +36,26 @@ async def import_trades(
     """Import trades from CSV or XLSX file."""
     if not file.filename:
         raise HTTPException(status_code=400, detail="No file provided")
-    
+
     ext = file.filename.lower().split(".")[-1]
     if ext not in ("csv", "xlsx"):
         raise HTTPException(status_code=400, detail="File must be .csv or .xlsx")
-    
+
     content = await file.read()
     rows = _parse_file(content, ext)
-    
+
     result = ImportResult()
-    
+
     for i, row in enumerate(rows, start=2):  # Start at 2 (row 1 is header)
         try:
             trade_data = _parse_trade_row(row)
-            await create_trade(db, current_user.id, trade_data)
+            await create_trade(db, current_user.id, trade_data, auto_sign=False)
             result.success_count += 1
         except Exception as e:
             result.errors.append({"row": i, "error": str(e)})
-    
+
     await db.commit()
-    
+
     return {
         "success_count": result.success_count,
         "error_count": len(result.errors),
@@ -74,26 +72,26 @@ async def import_cash(
     """Import cash transactions from CSV or XLSX file."""
     if not file.filename:
         raise HTTPException(status_code=400, detail="No file provided")
-    
+
     ext = file.filename.lower().split(".")[-1]
     if ext not in ("csv", "xlsx"):
         raise HTTPException(status_code=400, detail="File must be .csv or .xlsx")
-    
+
     content = await file.read()
     rows = _parse_file(content, ext)
-    
+
     result = ImportResult()
-    
+
     for i, row in enumerate(rows, start=2):
         try:
             cash_data = _parse_cash_row(row)
-            await create_cash_transaction(db, current_user.id, cash_data)
+            await create_cash_transaction(db, current_user.id, cash_data, auto_sign=False)
             result.success_count += 1
         except Exception as e:
             result.errors.append({"row": i, "error": str(e)})
-    
+
     await db.commit()
-    
+
     return {
         "success_count": result.success_count,
         "error_count": len(result.errors),
@@ -126,7 +124,7 @@ def _parse_trade_row(row: dict[str, str]) -> TradeCreate:
     """Parse a row dict into TradeCreate schema."""
     # Normalize keys to lowercase
     row = {k.lower().strip(): v for k, v in row.items()}
-    
+
     date_str = row.get("date", "")
     try:
         date = datetime.fromisoformat(date_str.replace(" ", "T"))
@@ -140,15 +138,16 @@ def _parse_trade_row(row: dict[str, str]) -> TradeCreate:
                 continue
         else:
             raise ValueError(f"Invalid date format: {date_str}")
-    
-    type_str = row.get("type", "").lower()
-    if type_str not in ("buy", "sell"):
-        raise ValueError(f"Invalid trade type: {type_str}")
-    
+
+    # Get action (previously type)
+    action = row.get("action", "") or row.get("type", "")
+    if not action:
+        raise ValueError("Missing action/type field")
+
     return TradeCreate(
         symbol=row.get("symbol", "").upper(),
         date=date,
-        type=TradeType(type_str),
+        action=action,
         price=Decimal(row.get("price", "0")),
         quantity=Decimal(row.get("quantity", "0")),
         fees=Decimal(row.get("fees", "0") or "0"),
@@ -160,7 +159,7 @@ def _parse_trade_row(row: dict[str, str]) -> TradeCreate:
 def _parse_cash_row(row: dict[str, str]) -> CashTransactionCreate:
     """Parse a row dict into CashTransactionCreate schema."""
     row = {k.lower().strip(): v for k, v in row.items()}
-    
+
     date_str = row.get("date", "")
     try:
         date = datetime.fromisoformat(date_str.replace(" ", "T"))
@@ -173,14 +172,15 @@ def _parse_cash_row(row: dict[str, str]) -> CashTransactionCreate:
                 continue
         else:
             raise ValueError(f"Invalid date format: {date_str}")
-    
-    type_str = row.get("type", "").lower()
-    if type_str not in ("deposit", "withdrawal"):
-        raise ValueError(f"Invalid transaction type: {type_str}")
-    
+
+    # Get action (previously type)
+    action = row.get("action", "") or row.get("type", "")
+    if not action:
+        raise ValueError("Missing action/type field")
+
     return CashTransactionCreate(
         date=date,
-        type=CashTransactionType(type_str),
+        action=action,
         amount=Decimal(row.get("amount", "0")),
         currency=row.get("currency", "USD").upper() or "USD",
         notes=row.get("notes") or None,
