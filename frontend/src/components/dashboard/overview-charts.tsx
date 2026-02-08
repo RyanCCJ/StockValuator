@@ -119,29 +119,44 @@ export function OverviewCharts({ holdings }: OverviewChartsProps) {
                 ? (data.value / totalPortfolioValue) * 100
                 : 0;
 
+            // Sort holdings by value to show top ones first
+            const sortedHoldings = [...data.holdings].sort((a, b) => b.value - a.value);
+            const topHoldings = sortedHoldings.slice(0, 5);
+            const remainingCount = sortedHoldings.length - 5;
+            const remainingValue = sortedHoldings.slice(5).reduce((sum, h) => sum + h.value, 0);
+
             return (
-                <div className="rounded-lg border bg-popover/95 px-4 py-3 text-popover-foreground shadow-xl backdrop-blur-sm min-w-[200px]">
-                    <div className="font-semibold text-base mb-2 flex justify-between items-center">
-                        <span>{data.name}</span>
-                        <span className="text-muted-foreground text-sm">
+                <div className="rounded-lg border bg-popover/95 px-3 py-2 text-popover-foreground shadow-xl backdrop-blur-sm min-w-[180px]">
+                    <div className="font-semibold text-sm mb-1.5 flex justify-between items-center border-b pb-1.5 gap-3">
+                        <span className="flex items-center gap-2 truncate">
+                            <span className="w-2.5 h-2.5 rounded-full shrink-0 block" style={{ backgroundColor: data.color }}></span>
+                            <span className="truncate">{data.name}</span>
+                        </span>
+                        <span className="text-muted-foreground text-xs font-normal shrink-0">
                             {sectorWeight.toFixed(1)}%
                         </span>
                     </div>
-                    <div className="text-sm mb-3">
+                    <div className="text-base font-bold mb-2">
                         {formatChartValue(data.value)}
                     </div>
-                    <div className="border-t pt-2 space-y-1.5">
-                        {data.holdings.map((holding) => (
-                            <div key={holding.symbol} className="flex justify-between text-sm">
-                                <span className="text-muted-foreground">{holding.symbol}</span>
-                                <div className="flex gap-3">
+                    <div className="space-y-1.5">
+                        {topHoldings.map((holding) => (
+                            <div key={holding.symbol} className="flex justify-between text-xs items-center">
+                                <span className="font-medium text-muted-foreground">{holding.symbol}</span>
+                                <div className="flex gap-2 text-right items-center">
                                     <span>{formatChartValue(holding.value)}</span>
-                                    <span className="text-muted-foreground w-12 text-right">
+                                    <span className="text-muted-foreground text-[10px] w-8 tabular-nums">
                                         {holding.weight.toFixed(1)}%
                                     </span>
                                 </div>
                             </div>
                         ))}
+                        {remainingCount > 0 && (
+                            <div className="flex justify-between text-xs items-center pt-1.5 border-t border-dashed mt-1">
+                                <span className="text-muted-foreground italic text-[10px]">+{remainingCount} others</span>
+                                <span className="text-[10px]">{formatChartValue(remainingValue)}</span>
+                            </div>
+                        )}
                     </div>
                 </div>
             );
@@ -155,9 +170,9 @@ export function OverviewCharts({ holdings }: OverviewChartsProps) {
         if (active && payload && payload.length) {
             return (
                 <div className="rounded-lg border bg-popover/90 px-3 py-2 text-popover-foreground shadow-xl backdrop-blur-sm">
-                    {label && <div className="font-semibold mb-1">{label}</div>}
+                    {label && <div className="font-semibold text-xs mb-1">{label}</div>}
                     {payload.map((entry: any, index: number) => (
-                        <div key={index} className="flex gap-2 items-center text-sm">
+                        <div key={index} className="flex gap-2 items-center text-xs">
                             <span className="opacity-70">{entry.name}:</span>
                             <span className="font-medium">{formatChartValue(entry.value)}</span>
                         </div>
@@ -184,13 +199,63 @@ export function OverviewCharts({ holdings }: OverviewChartsProps) {
                                     data={sectorAllocationData}
                                     cx="50%"
                                     cy="50%"
-                                    innerRadius={50}
-                                    outerRadius={80}
-                                    paddingAngle={2}
+                                    innerRadius={45}
+                                    outerRadius={70} // Reduced radius further to prevent labels from being cut off
+                                    paddingAngle={3}
                                     dataKey="value"
-                                    label={({ name, percent }) =>
-                                        `${name} ${((percent ?? 0) * 100).toFixed(0)}%`
-                                    }
+                                    label={({ cx, cy, midAngle, innerRadius, outerRadius, percent, name, index }) => {
+                                        if ((percent ?? 0) < 0.01) return null; // Hide labels for sectors < 1%
+
+                                        const sectorName = name ? String(name) : '';
+                                        const RADIAN = Math.PI / 180;
+                                        const safeMidAngle = midAngle ?? 0;
+                                        const safeOuterRadius = outerRadius ?? 80;
+
+                                        // Revert to 2-level stagger as 3-level was pushing labels off-screen
+                                        const isCrowded = sectorAllocationData.length > 4;
+                                        const staggerOffset = isCrowded ? (index % 2 === 0 ? 0 : 15) : 0;
+
+                                        const radius = safeOuterRadius + 20 + staggerOffset;
+                                        const x = cx + radius * Math.cos(-safeMidAngle * RADIAN);
+                                        const y = cy + radius * Math.sin(-safeMidAngle * RADIAN);
+                                        const textAnchor = x > cx ? 'start' : 'end';
+                                        const percentVal = ((percent ?? 0) * 100).toFixed(0);
+
+                                        // Split name into words to check if wrapping is needed
+                                        const words = sectorName.split(' ');
+                                        const shouldWrapName = sectorName.length > 10 && words.length > 1;
+
+                                        return (
+                                            <text
+                                                x={x}
+                                                y={y}
+                                                fill="currentColor"
+                                                textAnchor={textAnchor}
+                                                style={{ fontSize: '12px' }}
+                                                className="font-medium text-muted-foreground"
+                                            >
+                                                {shouldWrapName ? (
+                                                    <>
+                                                        {words.map((word: string, i: number) => (
+                                                            <tspan x={x} dy={i === 0 ? "-0.8em" : "1.1em"} key={i}>
+                                                                {word}
+                                                            </tspan>
+                                                        ))}
+                                                        <tspan x={x} dy="1.1em" className="font-bold opacity-80">
+                                                            {`${percentVal}%`}
+                                                        </tspan>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <tspan x={x} dy="-0.2em">{sectorName}</tspan>
+                                                        <tspan x={x} dy="1.1em" className="font-bold opacity-80">
+                                                            {`${percentVal}%`}
+                                                        </tspan>
+                                                    </>
+                                                )}
+                                            </text>
+                                        );
+                                    }}
                                     labelLine={false}
                                 >
                                     {sectorAllocationData.map((entry, index) => (
@@ -213,10 +278,25 @@ export function OverviewCharts({ holdings }: OverviewChartsProps) {
                 <CardContent>
                     <div className="h-[250px]">
                         <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={pnlData} layout="vertical" margin={{ left: 20 }}>
-                                <CartesianGrid strokeDasharray="3 3" horizontal vertical={false} />
-                                <XAxis type="number" tickFormatter={(v) => formatChartValue(v)} />
-                                <YAxis type="category" dataKey="symbol" width={50} />
+                            <BarChart data={pnlData} layout="vertical" margin={{ left: 5, right: 5, top: 5, bottom: 5 }}>
+                                <CartesianGrid strokeDasharray="3 3" horizontal vertical={false} strokeOpacity={0.2} />
+                                <XAxis
+                                    type="number"
+                                    tickFormatter={(v) => formatChartValue(v)}
+                                    tick={{ fontSize: 11 }}
+                                    tickLine={false}
+                                    axisLine={false}
+                                    className="text-muted-foreground"
+                                />
+                                <YAxis
+                                    type="category"
+                                    dataKey="symbol"
+                                    width={50}
+                                    tick={{ fontSize: 11, fontWeight: 500 }}
+                                    tickLine={false}
+                                    axisLine={false}
+                                    className="text-muted-foreground"
+                                />
                                 <Tooltip
                                     content={<PnLTooltip />}
                                     cursor={{ fill: "transparent" }}

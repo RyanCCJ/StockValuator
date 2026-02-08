@@ -99,6 +99,26 @@ export function InteractiveTrendChart({
     const borderColor = isDark ? "#374151" : "#d1d5db";
     const textColor = isDark ? "#9ca3af" : "#6b7280";
 
+    // Responsive height state with immediate client-side calculation
+    const [responsiveHeight, setResponsiveHeight] = useState(() => {
+        if (typeof window !== 'undefined') {
+            const isMobile = window.innerWidth < 640;
+            return isMobile ? Math.min(height, 160) : height;
+        }
+        return height;
+    });
+
+    useEffect(() => {
+        const updateDimensions = () => {
+            const isMobile = window.innerWidth < 640;
+            // Update state to trigger re-render of container height
+            setResponsiveHeight(isMobile ? Math.min(height, 160) : height);
+        };
+
+        window.addEventListener('resize', updateDimensions);
+        return () => window.removeEventListener('resize', updateDimensions);
+    }, [height]);
+
     // Calculate MA data with useMemo to avoid recalculation
     const ma20Data = useMemo(() =>
         showMA && ohlcData && ohlcData.length >= 20 ? calculateMA(ohlcData, 20) : null,
@@ -132,6 +152,8 @@ export function InteractiveTrendChart({
         if (!chartContainerRef.current || initializedRef.current) return;
 
         const chart = createChart(chartContainerRef.current, {
+            width: chartContainerRef.current.clientWidth,
+            height: chartContainerRef.current.clientHeight,
             layout: {
                 background: { type: ColorType.Solid, color: "transparent" },
                 textColor: textColor,
@@ -151,8 +173,17 @@ export function InteractiveTrendChart({
                 timeVisible: true,
                 secondsVisible: false,
             },
-            handleScale: true,
-            handleScroll: true,
+            handleScale: {
+                axisPressedMouseMove: true,
+                mouseWheel: true,
+                pinch: true,
+            },
+            handleScroll: {
+                mouseWheel: true,
+                pressedMouseMove: true,
+                horzTouchDrag: true,
+                vertTouchDrag: false, // Allow vertical page scroll on mobile
+            },
         });
 
         chartRef.current = chart;
@@ -202,8 +233,8 @@ export function InteractiveTrendChart({
 
         // Handle resize
         const resizeObserver = new ResizeObserver((entries) => {
-            const { width } = entries[0].contentRect;
-            chart.applyOptions({ width });
+            const { width, height } = entries[0].contentRect;
+            chart.applyOptions({ width, height });
             chart.timeScale().fitContent();
         });
 
@@ -349,7 +380,7 @@ export function InteractiveTrendChart({
             {/* Chart container */}
             <div
                 ref={chartContainerRef}
-                style={{ height: `${height}px` }}
+                style={{ height: `${responsiveHeight}px` }}
                 className="w-full"
             />
 
@@ -359,8 +390,12 @@ export function InteractiveTrendChart({
                     className="absolute pointer-events-none z-50 px-3 py-2 rounded-md shadow-lg text-sm
                                bg-background/90 dark:bg-card/90 border border-border backdrop-blur-sm"
                     style={{
-                        left: Math.min(tooltipData.x + 15, (chartContainerRef.current?.clientWidth || 300) - 160),
-                        top: Math.max(tooltipData.y - 30, 30),
+                        left: window.innerWidth < 640
+                            ? 10
+                            : Math.min(tooltipData.x + 15, (chartContainerRef.current?.clientWidth || 300) - 160),
+                        top: window.innerWidth < 640
+                            ? 10
+                            : Math.max(tooltipData.y - 30, 30),
                     }}
                 >
                     <div className="font-medium text-foreground mb-1">{tooltipData.date}</div>

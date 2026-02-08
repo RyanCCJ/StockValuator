@@ -151,8 +151,8 @@ export function DataTable<TData, TValue>({
             </div>
 
             {/* Pagination */}
-            <div className="flex items-center justify-between px-2">
-                <div className="text-sm text-muted-foreground">
+            <div className="flex flex-col-reverse sm:flex-row items-center justify-between gap-4 px-2 py-4">
+                <div className="text-sm text-muted-foreground text-center sm:text-left">
                     {t("showing")} {table.getState().pagination.pageIndex * table.getState().pagination.pageSize + 1}{" "}
                     {t("to")}{" "}
                     {Math.min(
@@ -161,9 +161,9 @@ export function DataTable<TData, TValue>({
                     )}{" "}
                     {t("of")} {table.getFilteredRowModel().rows.length}
                 </div>
-                <div className="flex items-center gap-4">
+                <div className="flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto">
                     <div className="flex items-center gap-2">
-                        <span className="text-sm text-muted-foreground">{t("rows_per_page")}</span>
+                        <span className="text-sm text-muted-foreground whitespace-nowrap">{t("rows_per_page")}</span>
                         <select
                             className="h-8 w-16 rounded-md border border-input bg-transparent px-2 text-sm"
                             value={table.getState().pagination.pageSize}
@@ -181,11 +181,12 @@ export function DataTable<TData, TValue>({
                             size="sm"
                             onClick={() => table.previousPage()}
                             disabled={!table.getCanPreviousPage()}
+                            className="h-8 w-8 p-0 sm:w-auto sm:h-9 sm:px-3"
                         >
-                            <ChevronLeft className="h-4 w-4" />
-                            {t("previous")}
+                            <ChevronLeft className="h-4 w-4 sm:mr-2" />
+                            <span className="sr-only sm:not-sr-only">{t("previous")}</span>
                         </Button>
-                        <span className="px-2 text-sm">
+                        <span className="px-2 text-sm whitespace-nowrap">
                             {t("page")} {table.getState().pagination.pageIndex + 1} {t("of")}{" "}
                             {table.getPageCount()}
                         </span>
@@ -194,9 +195,10 @@ export function DataTable<TData, TValue>({
                             size="sm"
                             onClick={() => table.nextPage()}
                             disabled={!table.getCanNextPage()}
+                            className="h-8 w-8 p-0 sm:w-auto sm:h-9 sm:px-3"
                         >
-                            {t("next")}
-                            <ChevronRight className="h-4 w-4" />
+                            <span className="sr-only sm:not-sr-only">{t("next")}</span>
+                            <ChevronRight className="h-4 w-4 sm:ml-2" />
                         </Button>
                     </div>
                 </div>

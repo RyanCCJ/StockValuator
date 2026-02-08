@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
 import {
     LineChart,
     Line,
@@ -85,6 +85,15 @@ interface PerformanceMetric {
 }
 
 export function MarketPulseChart({ indices, isLoading }: MarketPulseChartProps) {
+    const [isMobile, setIsMobile] = useState(false);
+
+    useEffect(() => {
+        const checkMobile = () => setIsMobile(window.innerWidth < 640);
+        checkMobile();
+        window.addEventListener('resize', checkMobile);
+        return () => window.removeEventListener('resize', checkMobile);
+    }, []);
+
     // Normalize data to percentage change from baseline (first data point)
     const { chartData, performanceMetrics } = useMemo(() => {
         if (!indices || indices.length === 0) {
@@ -169,7 +178,7 @@ export function MarketPulseChart({ indices, isLoading }: MarketPulseChartProps) 
     return (
         <div className="space-y-4">
             {/* Chart */}
-            <div className="h-64">
+            <div className="h-[200px] sm:h-64">
                 <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={chartData} margin={{ top: 5, right: -20, left: 5, bottom: 5 }}>
                         <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
@@ -194,6 +203,7 @@ export function MarketPulseChart({ indices, isLoading }: MarketPulseChartProps) 
                         <Tooltip
                             content={(props) => <CustomTooltip {...props} indices={indices} />}
                             cursor={{ stroke: 'hsl(var(--muted-foreground))', strokeDasharray: '3 3' }}
+                            position={isMobile ? { x: 0, y: 0 } : undefined}
                         />
                         <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" strokeDasharray="3 3" />
                         {indices.map((index) => (

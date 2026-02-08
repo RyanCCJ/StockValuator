@@ -148,12 +148,12 @@ export default function DashboardPage() {
 
     return (
         <div className="max-w-7xl mx-auto space-y-6">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-bold">{t('title')}</h1>
                     <p className="text-muted-foreground">{t('welcome_back', { email: session.user?.email || '' })}</p>
                 </div>
-                <Button onClick={fetchPortfolio} variant="outline" size="sm">
+                <Button onClick={fetchPortfolio} variant="outline" size="sm" className="self-start sm:self-auto">
                     {t('refresh')}
                 </Button>
             </div>

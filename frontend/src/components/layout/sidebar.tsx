@@ -4,13 +4,15 @@ import { useState, useEffect, useCallback } from "react";
 import { Link, usePathname } from "@/i18n/routing";
 import { useTranslations } from "next-intl";
 import { signOut } from "next-auth/react";
-import { TrendingUp, LogOut } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { TrendingUp, LogOut, Menu } from "lucide-react";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { LanguageToggle } from "@/components/layout/language-toggle";
 import { CurrencyToggle } from "@/components/layout/currency-toggle";
 import { AddTickerDialog } from "@/components/watchlist/add-ticker-dialog";
 import { CategoryManager } from "@/components/watchlist/category-manager";
+import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
+import { cn } from "@/lib/utils";
 import {
     getWatchlist,
     removeWatchlistItem,
@@ -31,6 +33,7 @@ export function Sidebar({ accessToken }: SidebarProps) {
     const [watchlist, setWatchlist] = useState<WatchlistResponse | null>(null);
     const [prices, setPrices] = useState<Record<string, StockPrice>>({});
     const [isLoading, setIsLoading] = useState(true);
+    const [isMobileOpen, setIsMobileOpen] = useState(false);
     const { formatMoney } = useCurrency();
 
     const fetchWatchlist = useCallback(async () => {
@@ -84,50 +87,8 @@ export function Sidebar({ accessToken }: SidebarProps) {
 
     // formatMoney is now provided by useCurrency()
 
-    const WatchlistItemRow = ({ item }: { item: WatchlistItem }) => {
-        const price = prices[item.symbol];
-        const isActive = pathname.includes(`/dashboard/stock/${item.symbol}`);
-
-        return (
-            <div className={`flex items-center justify-between py-1.5 px-2 rounded hover:bg-accent/50 group text-sm ${isActive ? 'bg-accent' : ''}`}>
-                <Link
-                    href={`/dashboard/stock/${item.symbol}`}
-                    className="flex-1 flex items-center gap-2"
-                >
-                    <span className="font-medium">{item.symbol}</span>
-                    {price && (
-                        <div className="flex-1 flex justify-end">
-                            <div className="text-right">
-                                <div className="text-xs">{formatMoney(price.price)}</div>
-                                <div
-                                    className={`text-xs ${(price.change_percent || 0) >= 0
-                                        ? "text-green-600 dark:text-green-400"
-                                        : "text-red-600 dark:text-red-400"
-                                        }`}
-                                >
-                                    {price.change_percent !== null
-                                        ? `${price.change_percent >= 0 ? "+" : ""}${price.change_percent.toFixed(2)}%`
-                                        : ""}
-                                </div>
-                            </div>
-                        </div>
-                    )}
-                </Link>
-                <button
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        handleRemoveItem(item.id);
-                    }}
-                    className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive text-xs ml-2"
-                >
-                    ✕
-                </button>
-            </div>
-        );
-    };
-
-    return (
-        <aside className="hidden md:flex w-64 flex-col border-r bg-card">
+    const renderSidebarContent = (onNavigate?: () => void) => (
+        <div className="flex h-full flex-col bg-card">
             <div className="p-6 flex items-center gap-2">
                 <TrendingUp className="h-6 w-6 text-foreground" />
                 <h2 className="text-lg font-semibold">StockValuator</h2>
@@ -137,6 +98,7 @@ export function Sidebar({ accessToken }: SidebarProps) {
             <nav className="px-4 space-y-1">
                 <Link
                     href="/dashboard"
+                    onClick={onNavigate}
                     className={`flex items-center gap-2 px-3 py-2 rounded-md ${pathname === "/dashboard"
                         ? "bg-accent text-accent-foreground"
                         : "hover:bg-accent"
@@ -146,6 +108,7 @@ export function Sidebar({ accessToken }: SidebarProps) {
                 </Link>
                 <Link
                     href="/dashboard/trades"
+                    onClick={onNavigate}
                     className={`flex items-center gap-2 px-3 py-2 rounded-md ${pathname === "/dashboard/trades"
                         ? "bg-accent text-accent-foreground"
                         : "hover:bg-accent"
@@ -155,6 +118,7 @@ export function Sidebar({ accessToken }: SidebarProps) {
                 </Link>
                 <Link
                     href="/dashboard/assets"
+                    onClick={onNavigate}
                     className={`flex items-center gap-2 px-3 py-2 rounded-md ${pathname === "/dashboard/assets"
                         ? "bg-accent text-accent-foreground"
                         : "hover:bg-accent"
@@ -164,6 +128,7 @@ export function Sidebar({ accessToken }: SidebarProps) {
                 </Link>
                 <Link
                     href="/dashboard/market-cycle"
+                    onClick={onNavigate}
                     className={`flex items-center gap-2 px-3 py-2 rounded-md ${pathname === "/dashboard/market-cycle"
                         ? "bg-accent text-accent-foreground"
                         : "hover:bg-accent"
@@ -199,7 +164,15 @@ export function Sidebar({ accessToken }: SidebarProps) {
                         {watchlist.uncategorized.length > 0 && (
                             <div>
                                 {watchlist.uncategorized.map((item) => (
-                                    <WatchlistItemRow key={item.id} item={item} />
+                                    <WatchlistItemRow
+                                        key={item.id}
+                                        item={item}
+                                        price={prices[item.symbol]}
+                                        pathname={pathname}
+                                        formatMoney={formatMoney}
+                                        onRemove={handleRemoveItem}
+                                        onNavigate={onNavigate}
+                                    />
                                 ))}
                             </div>
                         )}
@@ -211,7 +184,15 @@ export function Sidebar({ accessToken }: SidebarProps) {
                                     {category.name}
                                 </div>
                                 {category.items.map((item) => (
-                                    <WatchlistItemRow key={item.id} item={item} />
+                                    <WatchlistItemRow
+                                        key={item.id}
+                                        item={item}
+                                        price={prices[item.symbol]}
+                                        pathname={pathname}
+                                        formatMoney={formatMoney}
+                                        onRemove={handleRemoveItem}
+                                        onNavigate={onNavigate}
+                                    />
                                 ))}
                             </div>
                         ))}
@@ -240,6 +221,91 @@ export function Sidebar({ accessToken }: SidebarProps) {
                     {t('logout')}
                 </Button>
             </div>
-        </aside>
+        </div>
+    );
+
+    return (
+        <>
+            <aside className="hidden md:flex w-64 flex-col border-r bg-card">
+                {renderSidebarContent()}
+            </aside>
+
+            <div className="md:hidden w-full flex items-center p-4 border-b bg-card gap-4">
+                <Sheet open={isMobileOpen} onOpenChange={setIsMobileOpen}>
+                    <SheetTrigger asChild>
+                        <Button variant="ghost" size="icon">
+                            <Menu className="h-6 w-6" />
+                        </Button>
+                    </SheetTrigger>
+                    <SheetContent
+                        side="left"
+                        className="p-0 w-64"
+                        closeIcon={<Menu className="h-6 w-6" />}
+                        closeClassName={cn(
+                            "top-5 right-6 opacity-100",
+                            buttonVariants({ variant: "ghost", size: "icon" })
+                        )}
+                    >
+                        <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
+                        {renderSidebarContent(() => setIsMobileOpen(false))}
+                    </SheetContent>
+                </Sheet>
+                <div className="flex items-center gap-2">
+                    <TrendingUp className="h-6 w-6 text-foreground" />
+                    <h2 className="text-lg font-semibold">StockValuator</h2>
+                </div>
+            </div>
+        </>
     );
 }
+
+interface WatchlistItemRowProps {
+    item: WatchlistItem;
+    price: StockPrice | undefined;
+    pathname: string;
+    formatMoney: (val: number) => string;
+    onRemove: (id: string) => void;
+    onNavigate?: () => void;
+}
+
+const WatchlistItemRow = ({ item, price, pathname, formatMoney, onRemove, onNavigate }: WatchlistItemRowProps) => {
+    const isActive = pathname.includes(`/dashboard/stock/${item.symbol}`);
+
+    return (
+        <div className={`flex items-center justify-between py-1.5 px-2 rounded hover:bg-accent/50 group text-sm ${isActive ? 'bg-accent' : ''}`}>
+            <Link
+                href={`/dashboard/stock/${item.symbol}`}
+                className="flex-1 flex items-center gap-2"
+                onClick={onNavigate}
+            >
+                <span className="font-medium">{item.symbol}</span>
+                {price && (
+                    <div className="flex-1 flex justify-end">
+                        <div className="text-right">
+                            <div className="text-xs">{formatMoney(price.price)}</div>
+                            <div
+                                className={`text-xs ${(price.change_percent || 0) >= 0
+                                    ? "text-green-600 dark:text-green-400"
+                                    : "text-red-600 dark:text-red-400"
+                                    }`}
+                            >
+                                {price.change_percent !== null
+                                    ? `${price.change_percent >= 0 ? "+" : ""}${price.change_percent.toFixed(2)}%`
+                                    : ""}
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </Link>
+            <button
+                onClick={(e) => {
+                    e.stopPropagation();
+                    onRemove(item.id);
+                }}
+                className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive text-xs ml-2"
+            >
+                ✕
+            </button>
+        </div>
+    );
+};

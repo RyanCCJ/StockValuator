@@ -31,7 +31,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     }
 
     return (
-        <div className="flex min-h-screen">
+        <div className="flex min-h-screen flex-col md:flex-row">
             <Sidebar accessToken={accessToken} />
             <main className="flex-1 p-6 overflow-auto">
                 {children}

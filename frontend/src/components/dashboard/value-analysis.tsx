@@ -128,9 +128,9 @@ export function CompanyHeader({ data }: { data: FundamentalDataResponse }) {
     return (
         <Card>
             <CardHeader>
-                <div className="flex items-start gap-6">
+                <div className="flex flex-col md:flex-row items-start gap-6">
                     {/* Left: Name and basic info */}
-                    <div className="flex items-center gap-4 flex-shrink-0">
+                    <div className="flex items-center gap-4 flex-shrink-0 w-full md:w-auto">
                         {/* Logo: prefer coin_image_url for crypto, otherwise use Brandfetch ticker API */}
                         <img
                             src={data.coin_image_url || `https://cdn.brandfetch.io/ticker/${data.symbol}?c=${process.env.NEXT_PUBLIC_BRANDFETCH_CLIENT_ID || ''}`}
@@ -150,10 +150,10 @@ export function CompanyHeader({ data }: { data: FundamentalDataResponse }) {
 
                     {/* Right: Description (scrollable) */}
                     {data.description && (
-                        <div className="flex-1 min-w-0 border-l pl-6">
+                        <div className="flex-1 min-w-0 w-full md:w-auto border-t md:border-t-0 md:border-l pt-4 md:pt-0 pl-0 md:pl-6">
                             <p className="text-xs text-muted-foreground uppercase mb-2">{t("description")}</p>
                             <div className="max-h-32 overflow-y-auto pr-2">
-                                <p className="text-sm text-muted-foreground leading-relaxed">{data.description}</p>
+                                <p className="text-sm text-muted-foreground leading-relaxed break-words">{data.description}</p>
                             </div>
                         </div>
                     )}
@@ -286,7 +286,7 @@ export function InstitutionalHoldersTable({ data }: { data: FundamentalDataRespo
 // ============================================================
 
 // Stock/Crypto View Component (internal, composed of exported sub-components)
-function StockView({ data, t }: { data: FundamentalDataResponse; t: (key: string) => string }) {
+function StockView({ data }: { data: FundamentalDataResponse }) {
     return (
         <div className="space-y-6">
             <CompanyHeader data={data} />
@@ -318,9 +318,9 @@ function ETFView({ data, t }: { data: FundamentalDataResponse; t: (key: string) 
             {/* Header with Name, Market Cap, and Description */}
             <Card>
                 <CardHeader>
-                    <div className="flex items-start gap-6">
+                    <div className="flex flex-col md:flex-row items-start gap-6">
                         {/* Left: Name and basic info */}
-                        <div className="flex-shrink-0">
+                        <div className="flex-shrink-0 w-full md:w-auto">
                             <CardTitle>{data.long_name || data.symbol}</CardTitle>
                             <CardDescription>
                                 {data.expense_ratio != null && `${t("expense_ratio")}: ${formatRawPercent(data.expense_ratio)}`}
@@ -332,10 +332,10 @@ function ETFView({ data, t }: { data: FundamentalDataResponse; t: (key: string) 
 
                         {/* Right: Description (scrollable) */}
                         {data.description && (
-                            <div className="flex-1 min-w-0 border-l pl-6">
+                            <div className="flex-1 min-w-0 w-full md:w-auto border-t md:border-t-0 md:border-l pt-4 md:pt-0 pl-0 md:pl-6">
                                 <p className="text-xs text-muted-foreground uppercase mb-2">{t("description")}</p>
                                 <div className="max-h-32 overflow-y-auto pr-2">
-                                    <p className="text-sm text-muted-foreground leading-relaxed">{data.description}</p>
+                                    <p className="text-sm text-muted-foreground leading-relaxed break-words">{data.description}</p>
                                 </div>
                             </div>
                         )}
@@ -412,7 +412,7 @@ function ETFView({ data, t }: { data: FundamentalDataResponse; t: (key: string) 
                                                 dataKey="value"
                                                 labelLine={false}
                                             >
-                                                {chartData.map((entry, index) => (
+                                                {chartData.map((_, index) => (
                                                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                                 ))}
                                             </Pie>
@@ -443,5 +443,5 @@ export function ValueAnalysis({ data }: ValueAnalysisProps) {
         return <ETFView data={data} t={t} />;
     }
 
-    return <StockView data={data} t={t} />;
+    return <StockView data={data} />;
 }
