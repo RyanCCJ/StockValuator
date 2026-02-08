@@ -31,12 +31,15 @@ interface TradeListResponse {
     total: number;
 }
 
+// Custom event for authentication errors (401)
+export const AUTH_ERROR_EVENT = "auth:unauthorized";
+
 async function fetchWithAuth(
     endpoint: string,
     accessToken: string,
     options: RequestInit = {}
 ): Promise<Response> {
-    return fetch(`${API_BASE}${endpoint}`, {
+    const response = await fetch(`${API_BASE}${endpoint}`, {
         ...options,
         headers: {
             "Content-Type": "application/json",
@@ -44,6 +47,13 @@ async function fetchWithAuth(
             ...options.headers,
         },
     });
+
+    // Dispatch event on 401 to trigger frontend logout
+    if (response.status === 401 && typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent(AUTH_ERROR_EVENT));
+    }
+
+    return response;
 }
 
 export async function getTrades(
