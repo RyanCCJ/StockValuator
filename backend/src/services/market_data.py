@@ -28,6 +28,8 @@ def _sync_get_stock_price(symbol: str) -> dict | None:
             "price": float(info.last_price),
             "currency": getattr(info, "currency", "USD") or "USD",
             "previous_close": float(info.previous_close) if info.previous_close else None,
+            "change": None,
+            "change_percent": None,
         }
 
         # Calculate change

@@ -123,7 +123,7 @@ export default function StockDetailPage({ params }: StockDetailPageProps) {
                     {priceData && (
                         <p className="text-muted-foreground flex items-center gap-2">
                             <span className="text-lg font-semibold text-foreground">
-                                ${priceData.price.toFixed(2)}
+                                ${priceData.price?.toFixed(2) ?? "—"}
                             </span>
                             <span
                                 className={`text-sm font-medium ${isPositive ? "text-green-500" : "text-red-500"

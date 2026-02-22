@@ -61,6 +61,14 @@ async def _get_from_db(symbol: str, db: AsyncSession) -> FinancialMetrics | None
     if not row:
         return None
 
+    # Skip metadata-only records (created by portfolio service for sector/quote_type).
+    # These have source="yfinance" and no historical data, which would cause
+    # value analysis to incorrectly report "insufficient" data.
+    if row.source == "yfinance" and not any([
+        row.eps_history, row.roe_history, row.dividend_history
+    ]):
+        return None
+
     return FinancialMetrics(
         symbol=row.symbol,
         source=row.source,

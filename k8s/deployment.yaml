@@ -6,7 +6,7 @@ metadata:
     app: stockvaluator
     component: backend
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: stockvaluator
@@ -20,41 +20,85 @@ spec:
       containers:
         - name: backend
           image: stockvaluator-backend:latest
+          imagePullPolicy: IfNotPresent
           ports:
-            - containerPort: 8000
+            - containerPort: 8500
           env:
+            # --- Network Config from ConfigMap ---
+            - name: PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: stockvaluator-config
+                  key: BACKEND_PORT
+            
+            # --- Sensitive Secrets ---
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
                   name: stockvaluator-secrets
-                  key: database-url
+                  key: DATABASE_URL
             - name: REDIS_URL
               valueFrom:
                 secretKeyRef:
                   name: stockvaluator-secrets
-                  key: redis-url
+                  key: REDIS_URL
             - name: SECRET_KEY
               valueFrom:
                 secretKeyRef:
                   name: stockvaluator-secrets
-                  key: secret-key
+                  key: SECRET_KEY
+            - name: GOOGLE_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: stockvaluator-secrets
+                  key: GOOGLE_CLIENT_ID
+            - name: GOOGLE_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: stockvaluator-secrets
+                  key: GOOGLE_CLIENT_SECRET
+            
+            # --- Gmail Config ---
+            - name: GMAIL_USER_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: stockvaluator-secrets
+                  key: GMAIL_USER_EMAIL
+            - name: GMAIL_REFRESH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: stockvaluator-secrets
+                  key: GMAIL_REFRESH_TOKEN
+            
+            # --- Public/URL Config from ConfigMap ---
+            - name: GMAIL_REDIRECT_URI
+              valueFrom:
+                configMapKeyRef:
+                  name: stockvaluator-config
+                  key: GMAIL_REDIRECT_URI
+            - name: CORS_ORIGINS
+              valueFrom:
+                configMapKeyRef:
+                  name: stockvaluator-config
+                  key: CORS_ORIGINS
+
           resources:
             requests:
-              memory: "256Mi"
-              cpu: "100m"
+              memory: "1Gi"
+              cpu: "200m"
             limits:
-              memory: "512Mi"
-              cpu: "500m"
+              memory: "2Gi"
+              cpu: "1000m"
           readinessProbe:
             httpGet:
               path: /health
-              port: 8000
+              port: 8500
             initialDelaySeconds: 5
             periodSeconds: 10
           livenessProbe:
             httpGet:
               path: /health
-              port: 8000
+              port: 8500
             initialDelaySeconds: 15
             periodSeconds: 20
 ---
@@ -66,7 +110,7 @@ metadata:
     app: stockvaluator
     component: frontend
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: stockvaluator
@@ -80,21 +124,55 @@ spec:
       containers:
         - name: frontend
           image: stockvaluator-frontend:latest
+          imagePullPolicy: IfNotPresent
           ports:
-            - containerPort: 3000
+            - containerPort: 3500
           env:
+            # --- Network Config from ConfigMap ---
+            - name: PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: stockvaluator-config
+                  key: FRONTEND_PORT
+            
+            # --- URL Config from ConfigMap ---
             - name: BACKEND_URL
-              value: "http://stockvaluator-backend:8000"
+              valueFrom:
+                configMapKeyRef:
+                  name: stockvaluator-config
+                  key: BACKEND_URL
+            - name: NEXTAUTH_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: stockvaluator-config
+                  key: NEXTAUTH_URL
+            - name: AUTH_TRUST_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: stockvaluator-config
+                  key: AUTH_TRUST_HOST
+            
+            # --- Sensitive Secrets ---
             - name: AUTH_SECRET
               valueFrom:
                 secretKeyRef:
                   name: stockvaluator-secrets
-                  key: auth-secret
+                  key: AUTH_SECRET
+            - name: GOOGLE_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: stockvaluator-secrets
+                  key: GOOGLE_CLIENT_ID
+            - name: GOOGLE_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: stockvaluator-secrets
+                  key: GOOGLE_CLIENT_SECRET
             - name: NEXT_PUBLIC_BRANDFETCH_CLIENT_ID
               valueFrom:
                 secretKeyRef:
                   name: stockvaluator-secrets
-                  key: brandfetch-client-id
+                  key: NEXT_PUBLIC_BRANDFETCH_CLIENT_ID
           resources:
             requests:
               memory: "128Mi"
@@ -105,7 +183,7 @@ spec:
           readinessProbe:
             httpGet:
               path: /
-              port: 3000
+              port: 3500
             initialDelaySeconds: 5
             periodSeconds: 10
 ---
@@ -131,30 +209,53 @@ spec:
       containers:
         - name: celery-worker
           image: stockvaluator-backend:latest
+          imagePullPolicy: IfNotPresent
           command: ["uv", "run", "celery", "-A", "src.worker:celery_app", "worker", "--loglevel=info"]
           env:
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
                   name: stockvaluator-secrets
-                  key: database-url
+                  key: DATABASE_URL
             - name: REDIS_URL
               valueFrom:
                 secretKeyRef:
                   name: stockvaluator-secrets
-                  key: redis-url
+                  key: REDIS_URL
             - name: SECRET_KEY
               valueFrom:
                 secretKeyRef:
                   name: stockvaluator-secrets
-                  key: secret-key
+                  key: SECRET_KEY
+            - name: GOOGLE_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: stockvaluator-secrets
+                  key: GOOGLE_CLIENT_ID
+            - name: GOOGLE_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: stockvaluator-secrets
+                  key: GOOGLE_CLIENT_SECRET
+            - name: GMAIL_USER_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: stockvaluator-secrets
+                  key: GMAIL_USER_EMAIL
+            - name: GMAIL_REFRESH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: stockvaluator-secrets
+                  key: GMAIL_REFRESH_TOKEN
+            - name: GMAIL_REDIRECT_URI
+              value: "http://localhost:8500/email/oauth/callback"
           resources:
             requests:
-              memory: "256Mi"
-              cpu: "100m"
+              memory: "1Gi"
+              cpu: "200m"
             limits:
-              memory: "512Mi"
-              cpu: "500m"
+              memory: "2Gi"
+              cpu: "1000m"
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -178,23 +279,24 @@ spec:
       containers:
         - name: celery-beat
           image: stockvaluator-backend:latest
+          imagePullPolicy: IfNotPresent
           command: ["uv", "run", "celery", "-A", "src.worker:celery_app", "beat", "--loglevel=info"]
           env:
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
                   name: stockvaluator-secrets
-                  key: database-url
+                  key: DATABASE_URL
             - name: REDIS_URL
               valueFrom:
                 secretKeyRef:
                   name: stockvaluator-secrets
-                  key: redis-url
+                  key: REDIS_URL
             - name: SECRET_KEY
               valueFrom:
                 secretKeyRef:
                   name: stockvaluator-secrets
-                  key: secret-key
+                  key: SECRET_KEY
           resources:
             requests:
               memory: "128Mi"

@@ -5,6 +5,7 @@ import { redirect, usePathname } from "next/navigation";
 import { useEffect } from "react";
 import { Loader2 } from "lucide-react";
 import { Sidebar } from "@/components/layout/sidebar";
+import { ErrorBoundary } from "@/components/layout/error-boundary";
 import { AUTH_ERROR_EVENT } from "@/services/api";
 
 interface DashboardLayoutProps {
@@ -48,7 +49,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         <div className="flex min-h-screen flex-col md:flex-row">
             <Sidebar accessToken={accessToken} />
             <main className="flex-1 p-6 overflow-auto">
-                {children}
+                <ErrorBoundary>
+                    {children}
+                </ErrorBoundary>
             </main>
         </div>
     );

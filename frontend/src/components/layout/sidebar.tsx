@@ -163,7 +163,7 @@ export function Sidebar({ accessToken }: SidebarProps) {
                         {/* Uncategorized items */}
                         {watchlist.uncategorized.length > 0 && (
                             <div>
-                                {watchlist.uncategorized.map((item) => (
+                                {[...watchlist.uncategorized].sort((a, b) => a.symbol.localeCompare(b.symbol)).map((item) => (
                                     <WatchlistItemRow
                                         key={item.id}
                                         item={item}
@@ -183,7 +183,7 @@ export function Sidebar({ accessToken }: SidebarProps) {
                                 <div className="text-xs font-medium text-muted-foreground mb-1 px-2">
                                     {category.name}
                                 </div>
-                                {category.items.map((item) => (
+                                {[...category.items].sort((a, b) => a.symbol.localeCompare(b.symbol)).map((item) => (
                                     <WatchlistItemRow
                                         key={item.id}
                                         item={item}
@@ -289,7 +289,7 @@ const WatchlistItemRow = ({ item, price, pathname, formatMoney, onRemove, onNavi
                                     : "text-red-600 dark:text-red-400"
                                     }`}
                             >
-                                {price.change_percent !== null
+                                {price.change_percent != null
                                     ? `${price.change_percent >= 0 ? "+" : ""}${price.change_percent.toFixed(2)}%`
                                     : ""}
                             </div>

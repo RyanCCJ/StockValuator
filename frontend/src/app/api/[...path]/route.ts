@@ -5,9 +5,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 
-const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8000';
-
 async function proxyRequest(request: NextRequest, path: string) {
+    const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8000';
     const url = new URL(path, BACKEND_URL);
 
     // Copy query parameters

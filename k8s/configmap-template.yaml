@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: stockvaluator-config
+data:
+  # ==============================
+  # Network Config
+  # ==============================
+  BACKEND_PORT: "8500"
+  FRONTEND_PORT: "3500"
+
+  # ==============================
+  # URLs (Tailscale Service Short Domain)
+  # ==============================
+  BACKEND_URL: "http://stockvaluator-backend:8500"
+  
+  # The verified working service-identity domain
+  NEXTAUTH_URL: "https://stock-valuator.your-tailnet.ts.net"
+  CORS_ORIGINS: "https://stock-valuator.your-tailnet.ts.net"
+  
+  # Gmail OAuth Callback
+  GMAIL_REDIRECT_URI: "https://stock-valuator.your-tailnet.ts.net/api/email/oauth/callback"
+
+  # ==============================
+  # Misc
+  # ==============================
+  AUTH_TRUST_HOST: "true"

@@ -33,7 +33,7 @@ spec:
         # StockValuator
         StockValuator is a comprehensive portfolio management system supporting custom trade logging, asset allocation analysis, multi-language support, and real-time currency conversion.
         ### Included Services:
-        - **Frontend**: Built with Next.js 15
+        - **Frontend**: Built with Next.js 16
         - **Backend**: Built with FastAPI
         - **Database**: PostgreSQL 16
         - **Cache**: Redis 7

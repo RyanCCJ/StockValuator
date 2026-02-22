@@ -17,6 +17,7 @@ RUN uv sync --frozen --no-dev && \
 COPY src ./src
 COPY alembic ./alembic
 COPY alembic.ini ./
+COPY scripts ./scripts
 
 # Expose port (can be overridden by PORT env var)
 EXPOSE 8000

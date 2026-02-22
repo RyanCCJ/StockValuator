@@ -1,105 +1,162 @@
 # StockValuator
 
-A comprehensive, full-stack web application for the modern investor, focusing on deep value analysis while providing a full suite of technical analysis and portfolio management tools. This all-in-one platform helps users make informed decisions by estimating fair stock prices, analyzing market trends, and tracking personal asset allocation.
+<div align="center">
 
-## Preview
+![License](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)
+![Python](https://img.shields.io/badge/python-3.12-blue)
+![TypeScript](https://img.shields.io/badge/typescript-%23007ACC.svg?logo=typescript&logoColor=white)
+![Next.js](https://img.shields.io/badge/Next.js-16-black)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.115-green)
+![Kubernetes](https://img.shields.io/badge/kubernetes-%23326ce5.svg?logo=kubernetes&logoColor=white)
+![Containerized](https://img.shields.io/badge/containerized-blue?logo=docker&logoColor=white)
 
-| Dashboard | Analysis | Portfolio |
-| :---: | :---: | :---: |
-| ![dashboard](assets/dashboard.png) | ![analysis](assets/analysis.png) | ![portfolio](assets/portfolio.png) |
+</div>
 
-## Core Features
+**StockValuator** is a comprehensive analysis dashboard designed for individual investors. It streamlines the process of value investing by integrating fundamental valuation models with modern technical charting tools in a single interface.
 
-- **Advanced Value Investing Analysis**
-  - **Confidence Score**: Evaluates long-term stability based on EPS, dividends, FCF, and ROE.
-  - **Dividend Score**: Assesses the quality and sustainability of a company's dividend.
-  - **Value Score**: Determines if a stock is undervalued based on various metrics like P/E, yield, and DDM.
-  - **Fair Value Estimation**: Provides calculated estimates for a stock's fair value based on Growth, Dividend, or Asset models, with clear explanations for each calculation.
+Unlike simple stock trackers, StockValuator helps users evaluate investment opportunities by consolidating financial data, calculating fair value estimates, and tracking market cycles.
 
-- **Comprehensive Technical Analysis Dashboard**
-  - **Interactive Candlestick Chart**: A professional and theme-aware K-line chart for detailed price action analysis.
-  - **Toggleable Indicators**: Full control over the chart's appearance with individual switches for:
-    - Bollinger Bands
-    - Moving Averages (MA)
-    - Exponential Moving Averages (EMA)
-    - Support & Resistance Levels
-  - **Sub-Chart Indicators**: Dedicated chart panels for:
-    - Volume
-    - MACD (with histogram and signal lines)
+## 📸 Preview
 
-- **ETF-Specific View**
-  - When an ETF is selected, the analysis view adapts to show:
-    - A detailed summary and key metrics (Expense Ratio, Yield, P/E, etc.) sourced from reliable APIs.
-    - A visual breakdown of the Top 15 holdings in a pie chart and a detailed table.
+### Portfolio & Asset Management
+*The central hub for tracking your investments. Features multiple specialized views including **Assets** for overall allocation, **Trades** for historical logging, and a **Broker Importer** for seamless data migration from platforms like Schwab.*
+![Portfolio](assets/portfolio.png)
 
-- **Personalized Portfolio Management**
-  - Track individual stock holdings with share count and average price.
-  - Real-time profit/loss and total value calculation.
-  - Manage total assets to see portfolio allocation vs. cash.
-  - Visualize holdings by ticker and by investment category with interactive pie charts.
+### Stock Analysis & Charting
+*Professional-grade technical charts built with Lightweight Charts, featuring interactive indicators (e.g., MACD, RSI, Bollinger Bands, MA, and custom overlays).*
+![Technical Analysis](assets/technical_analysis.png)
 
-- **Modern UI/UX & Architecture**
-  - **State-Driven Navigation**: A clean, tab-based UI to switch between Dashboard, Analysis, and Portfolio views.
-  - **Data Aggregation**: Backend scrapers fetch data from multiple online financial sources, with source-de-identification via environment variables.
-  - **Customizable Theme**: Light/Dark mode support, with a manual toggle and respect for system preference.
+### Fundamental Valuation
+*Calculated Fair Value estimates vs. Current Price, supported by 10-year historical metrics and algorithmic confidence scores.*
+![Value Analysis](assets/value_analysis.png)
 
-## Tech Stack
+### Market Cycle Indicator
+*Macro-economic analysis combining Shiller PE, Treasury Yield Spreads, and Market Breadth to assess overall market risk levels.*
+![Market Cycle](assets/market_cycle.png)
 
-### Backend
-- **Framework**: FastAPI
-- **Web Scraping**: Playwright
-- **Financial Data API**: yfinance
-- **Data Analysis**: Pandas, NumPy, SciPy
-- **Database**: PostgreSQL
-- **Containerization**: Docker, Docker Compose
+## ✨ Key Features
 
-### Frontend
-- **Framework**: Next.js (React)
-- **State Management**: Zustand
-- **UI**: Shadcn/UI, Radix UI, Tailwind CSS
-- **Charting**: lightweight-charts, recharts
-- **Language**: TypeScript
+- **Portfolio & Trade Management**
+  - **Comprehensive Dashboard**: Real-time overview of total portfolio value, unrealized P/L, and unified asset tracking.
+  - **Broker Data Import**: Seamlessly migrate historical trade data from major platforms (e.g., Charles Schwab).
+  - **Investment Journaling**: Record detailed psychological notes for every trade to refine long-term discipline.
+  - **Visual Portfolio Analytics**: Dynamic sector distribution and holding-specific performance.
+  - **Smart Price Alerts**: Set custom price targets with automated **Email Notifications** via Gmail API (OAuth 2.0) or SMTP.
 
-## Getting Started
+- **Advanced Charting**
+  - **High-Performance Interactivity**: Built with **TradingView Lightweight Charts** for smooth price action and data visualization.
+  - **Technical Analysis**: Integrated indicators including **MA, Bollinger Bands, MACD, RSI, and KD**.
+  - **Multi-Panel Views**: Synchronized sub-charts for volume and oscillator analysis.
+  - **ETF Insights**: Dedicated views for ETF expense ratios, yields, and top holdings distribution.
 
-Follow these instructions to get the project up and running on your local machine.
+- **Intelligent Value Scoring**
+  - **Confidence Score**: Algorithmic assessment of 10+ years of financial consistency (EPS, ROE, FCF).
+  - **Dividend Safety**: Analysis of payout ratios and yield sustainability.
+  - **Fair Value Models**: Automated calculation using:
+    - *Growth-Based Model (Lynch Ratio)*
+    - *Dividend Valuation (Target Yield Model)*
+    - *Asset-Based Valuation (Tangible Book)*
+
+- **Macro Market Analysis**
+  - **Market Cycle Indicator**: A composite score (0-100) that identifies the current market stage: **Accumulation, Mark-Up, Distribution, or Mark-Down**.
+  - **Data Aggregation**: Combines Shiller PE, Treasury Yield Spreads, VIX, and Market Breadth to assess systemic risk and investment opportunities.
+
+- **Internationalization (i18n)**
+  - Full support for **English** and **Traditional Chinese (正體中文)**.
+
+## 🏗️ Architecture & Tech Stack
+
+StockValuator is built as a robust, containerized micro-service application.
+
+| Component | Technology | Description |
+|-----------|------------|-------------|
+| **Frontend** | Next.js 16, TypeScript | Server-side rendering, Client-side interactivity with Zustand. |
+| **Backend** | FastAPI, Python 3.12 | High-performance async API. |
+| **Task Queue** | Celery, Redis | Distributed background worker and scheduled task management. |
+| **Database** | PostgreSQL | Relational storage for historical financial data. |
+| **Caching** | Redis | Caching API responses and distributed locking. |
+| **Scraping** | Playwright | Headless browser automation for complex data sources. |
+
+### Technical Highlights
+- **Browser Pool**: Custom implementation to manage memory-heavy headless browsers, preventing leaks and ensuring server stability. [Read more](docs/BROWSER_POOL.md).
+- **Distributed Locking**: Redis-based locking prevents "thundering herd" issues when multiple users request analysis for the same ticker simultaneously. [Read more](docs/CACHING_AND_LOCKING.md).
+- **Clean Architecture**: Separation of concerns with Services, Repositories, and Pydantic Schemas. [Read more](docs/ARCHITECTURE.md).
+
+## 🚀 Getting Started
 
 ### Prerequisites
-
-- Git
 - Docker & Docker Compose
-- Node.js & npm
+- Node.js (Optional, for local frontend development)
 
-### Installation & Setup
+### Quick Start (Docker)
 
-1.  **Clone the repository:**
+1.  **Clone the repo**
     ```bash
     git clone https://github.com/RyanCCJ/StockValuator.git
     cd StockValuator
     ```
 
-2.  **Configure Environment Variables:**
-    - Create a `.env` file inside the `/backend` directory by copying the example file.
-    - This file contains the URLs for the scrapers and the database connection string. The default values are generally suitable for local development.
+2.  **Environment Setup**
+    Copy the example environment file.
     ```bash
-    # This command works on Linux/macOS
-    cp .env.example backend/.env
+    cp backend/.env.example backend/.env
     ```
+    *Note: The default settings work out-of-the-box for local development.*
 
-3.  **Build and Run the Application:**
-    - This single command builds and runs all services (backend, frontend, db, etc.).
+3.  **Run with Docker Compose**
     ```bash
     docker-compose up --build -d
     ```
-    - The **first time** you run the application, you need to install the Playwright browsers inside the backend container:
+
+4.  **Access the App**
+    - **App**: [http://localhost:3000](http://localhost:3000)
+    - **API Docs**: [http://localhost:8000/docs](http://localhost:8000/docs)
+
+### Local Development (Hybrid)
+
+To run the frontend locally while keeping backend services in Docker:
+
+1.  Start Backend & DB: `docker-compose up backend db redis`
+2.  Install Frontend Dependencies:
     ```bash
-    docker-compose exec backend playwright install
+    cd frontend
+    npm install
+    ```
+3.  Run Frontend:
+    ```bash
+    npm run dev
     ```
 
-4.  **Access the Application:**
-    - **Frontend**: `http://localhost:3000`
-    - **Backend API Docs**: `http://localhost:8000/docs`
+## 🌐 Deployment
 
-## License
+StockValuator is designed to be environment-agnostic and can be deployed to various platforms.
 
-Distributed under the AGPL-3.0 License. See `LICENSE` for more information.
+### ☁️ Zeabur (PaaS)
+Optimized for one-click deployment from GitHub.
+- **Backend Port**: `8080` (Standard for Zeabur)
+- **Database**: Supports managed PostgreSQL and Redis services.
+- [Read the Zeabur Deployment Guide](docs/ZEABUR_DEPLOYMENT.md)
+
+### ☸️ Kubernetes (Self-Hosted)
+Includes manifests for full-cluster deployment, suitable for local (OrbStack/Minikube) or production environments.
+- **Frontend Port**: `3500`
+- **Infrastructure**: Configured for horizontal scaling and secret management.
+- [Read the Kubernetes Deployment Guide](k8s/README.md)
+
+## 📂 Project Structure
+
+```
+├── backend/            # FastAPI Application
+│   ├── src/core/       # Config, Cache, Database
+│   ├── src/services/   # Valuation Logic, Scrapers
+│   └── src/api/        # REST Endpoints
+├── frontend/           # Next.js Application
+│   ├── src/components/ # UI Components
+│   └── src/app/        # Pages & Routing
+├── docs/               # Technical Documentation
+└── k8s/                # Kubernetes Manifests
+```
+
+## 📜 License
+
+This project is licensed under the **AGPL-3.0**. See the [LICENSE](LICENSE) file for details.
