@@ -31,6 +31,11 @@ After creation, note down the connection information for each service.
 | `GMAIL_REDIRECT_URI` | `https://<backend-domain>.zeabur.app/email/oauth/callback` | For Gmail OAuth |
 | `GMAIL_REFRESH_TOKEN` | OAuth refresh token | Get from /email/oauth/authorize |
 | `GMAIL_USER_EMAIL` | Your Gmail address | For sending price alerts |
+| `AI_PROVIDER` | `openai`, `anthropic`, or `gemini` | Optional. Leave empty to disable AI scoring |
+| `AI_MODEL` | Model name override | Optional. Defaults: gpt-5.4-nano / claude-haiku-4-5 / gemini-3.1-flash-lite-preview |
+| `OPENAI_API_KEY` | OpenAI API key | Required if `AI_PROVIDER=openai` |
+| `ANTHROPIC_API_KEY` | Anthropic API key | Required if `AI_PROVIDER=anthropic` |
+| `GEMINI_API_KEY` | Gemini API key | Required if `AI_PROVIDER=gemini` |
 
 4. Bind Domain (e.g., `stock-valuator-api`)
 

@@ -602,7 +602,7 @@ export type {
     FundamentalDataResponse, InstitutionalHolder, TopHolding, SectorWeighting,
     PriceAlert, AlertListResponse, CreateAlertData,
     ValueAnalysisResponse, ScoreBreakdown, ConfidenceScore, DividendScore,
-    ValueScoreType, FairValueEstimate, AIScoreResponse, YearValue,
+    ValueScoreType, FairValueEstimate, AIScoreResponse, AIConfigResponse, YearValue,
     NewsItem, ResearchItem, NewsAndResearchResponse,
 };
 
@@ -656,6 +656,11 @@ interface ValueAnalysisResponse {
     fair_value?: FairValueEstimate;
     pe_history?: YearValue[] | null;
     dividend_yield_history?: YearValue[] | null;
+}
+
+interface AIConfigResponse {
+    ai_enabled: boolean;
+    provider: string | null;
 }
 
 interface AIScoreResponse {
@@ -717,6 +722,25 @@ export async function getAIPrompt(
     const response = await fetch(`${API_BASE}/analysis/${symbol}/ai-prompt/${scoreType}`);
     if (!response.ok) {
         throw new Error(`Failed to fetch AI prompt for ${symbol}`);
+    }
+    return response.json();
+}
+
+export async function getAIConfig(): Promise<AIConfigResponse> {
+    const response = await fetch(`${API_BASE}/analysis/ai-config`);
+    if (!response.ok) {
+        throw new Error("Failed to fetch AI config");
+    }
+    return response.json();
+}
+
+export async function getAIScore(
+    symbol: string,
+    scoreType: "moat" | "risk"
+): Promise<AIScoreResponse> {
+    const response = await fetch(`${API_BASE}/analysis/${symbol}/ai-score/${scoreType}`);
+    if (!response.ok) {
+        throw new Error(`Failed to fetch AI score for ${symbol}`);
     }
     return response.json();
 }

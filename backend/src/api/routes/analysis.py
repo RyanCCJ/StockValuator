@@ -1,9 +1,11 @@
 import asyncio
+import logging
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.deps import get_db
 from src.schemas.value_analysis import (
+    AIScoreResponse,
     DataStatusEnum,
     FairValueRequest,
     FairValueResponse,
@@ -26,10 +28,31 @@ from src.services.value_analysis import (
 from src.services.ai_scoring import (
     generate_moat_prompt,
     generate_risk_prompt,
+    is_ai_enabled,
+    get_cached_ai_score,
+    save_ai_score_to_cache,
+    call_ai_provider,
+    parse_and_validate_ai_response,
 )
 from src.services.market_data import get_stock_price, get_fundamental_data, get_sp500_yield
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/analysis", tags=["analysis"])
+
+
+# ------------------------------------------------------------------
+# AI config endpoint (must be before /{symbol} routes to avoid clash)
+# ------------------------------------------------------------------
+@router.get("/ai-config")
+async def get_ai_config():
+    """Return AI configuration status without exposing keys."""
+    from src.core.config import get_settings
+
+    settings = get_settings()
+    provider = settings.ai_provider.lower().strip() or None
+    enabled = is_ai_enabled()
+    return {"ai_enabled": enabled, "provider": provider if enabled else None}
 
 
 def _determine_data_status(metrics) -> DataStatusEnum:
@@ -262,3 +285,86 @@ async def get_ai_prompt(
         prompt = generate_risk_prompt(symbol, company_name, sector, industry)
 
     return {"symbol": symbol.upper(), "score_type": score_type, "prompt": prompt}
+
+
+@router.get("/{symbol}/ai-score/{score_type}", response_model=AIScoreResponse)
+async def get_ai_score(
+    symbol: str,
+    score_type: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """Get AI-generated moat/risk score with caching and retry."""
+    if score_type not in ("moat", "risk"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="score_type must be 'moat' or 'risk'",
+        )
+
+    symbol = symbol.upper()
+
+    # Resolve company info for prompt generation
+    fundamental = await get_fundamental_data(symbol, db)
+    company_name = fundamental.get("long_name", symbol) if fundamental else symbol
+    sector = fundamental.get("sector") if fundamental else None
+    industry = fundamental.get("industry") if fundamental else None
+
+    if score_type == "moat":
+        prompt = generate_moat_prompt(symbol, company_name, sector, industry)
+    else:
+        prompt = generate_risk_prompt(symbol, company_name, sector, industry)
+
+    # 1. Check cache
+    cached = await get_cached_ai_score(symbol, score_type, db)
+    if cached:
+        return AIScoreResponse(
+            symbol=symbol,
+            score_type=score_type,
+            score=cached.score,
+            breakdown=cached.breakdown,
+            reasoning=cached.reasoning,
+            manual_entry_required=False,
+        )
+
+    # 2. Check AI enabled
+    if not is_ai_enabled():
+        return AIScoreResponse(
+            symbol=symbol,
+            score_type=score_type,
+            prompt=prompt,
+            manual_entry_required=True,
+        )
+
+    # 3. AI call with retry (max 3)
+    max_retries = 3
+    last_error = None
+    for attempt in range(1, max_retries + 1):
+        try:
+            raw_json = await call_ai_provider(prompt, score_type)
+            result = parse_and_validate_ai_response(raw_json, score_type)
+            # Save to cache
+            await save_ai_score_to_cache(symbol, score_type, result, db)
+            return AIScoreResponse(
+                symbol=symbol,
+                score_type=score_type,
+                score=result.score,
+                breakdown=result.breakdown,
+                reasoning=result.reasoning,
+                manual_entry_required=False,
+            )
+        except Exception as e:
+            last_error = str(e)
+            logger.warning(
+                f"AI scoring attempt {attempt}/{max_retries} failed for "
+                f"{symbol} {score_type}: {e}"
+            )
+
+    # 4. All retries exhausted → fallback to manual
+    logger.error(f"AI scoring failed after {max_retries} retries for {symbol} {score_type}")
+    return AIScoreResponse(
+        symbol=symbol,
+        score_type=score_type,
+        prompt=prompt,
+        error=last_error,
+        manual_entry_required=True,
+    )
+

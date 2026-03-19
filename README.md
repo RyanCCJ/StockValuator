@@ -50,6 +50,7 @@ Unlike simple stock trackers, StockValuator helps users evaluate investment oppo
   - **ETF Insights**: Dedicated views for ETF expense ratios, yields, and top holdings distribution.
 
 - **Intelligent Value Scoring**
+  - **AI-Assisted Qualitative Scoring**: Optional LLM integration (OpenAI, Anthropic, Gemini) to automatically evaluate Moat and Risk based on historical data and reasoning.
   - **Confidence Score**: Algorithmic assessment of 10+ years of financial consistency (EPS, ROE, FCF).
   - **Dividend Safety**: Analysis of payout ratios and yield sustainability.
   - **Fair Value Models**: Automated calculation using:

@@ -81,6 +81,35 @@ spec:
                 configMapKeyRef:
                   name: stockvaluator-config
                   key: CORS_ORIGINS
+            
+            # --- AI Scoring Config from ConfigMap ---
+            - name: AI_PROVIDER
+              valueFrom:
+                configMapKeyRef:
+                  name: stockvaluator-config
+                  key: AI_PROVIDER
+            - name: AI_MODEL
+              valueFrom:
+                configMapKeyRef:
+                  name: stockvaluator-config
+                  key: AI_MODEL
+            
+            # --- AI Scoring API Keys from Secrets ---
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: stockvaluator-secrets
+                  key: OPENAI_API_KEY
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: stockvaluator-secrets
+                  key: ANTHROPIC_API_KEY
+            - name: GEMINI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: stockvaluator-secrets
+                  key: GEMINI_API_KEY
 
           resources:
             requests:

@@ -13,8 +13,11 @@ import {
     getValueAnalysis,
     getFairValue,
     getAIPrompt,
+    getAIConfig,
+    getAIScore,
     ScoreBreakdown,
     FairValueEstimate,
+    AIScoreResponse,
     ApiError,
 } from "@/services/api";
 
@@ -188,28 +191,101 @@ function MoatRiskInputs({
     hasRiskBeenSet,
     onMoatChange,
     onRiskChange,
+    aiEnabled,
+    savedMoatAI,
+    savedRiskAI,
+    onSaveMoatAI,
+    onSaveRiskAI,
 }: {
     symbol: string;
     localMoatScore: number | "";
     localRiskScore: number | "";
     hasMoatBeenSet: boolean;
     hasRiskBeenSet: boolean;
-    onMoatChange: (val: number | "") => void;
-    onRiskChange: (val: number | "") => void;
+    onMoatChange: (val: number | "", isAI?: boolean) => void;
+    onRiskChange: (val: number | "", isAI?: boolean) => void;
+    aiEnabled: boolean;
+    savedMoatAI: AIScoreResponse | null;
+    savedRiskAI: AIScoreResponse | null;
+    onSaveMoatAI: (data: AIScoreResponse) => void;
+    onSaveRiskAI: (data: AIScoreResponse) => void;
 }) {
     const t = useTranslations("ValueAnalysis");
     const [copiedPrompt, setCopiedPrompt] = useState<string | null>(null);
 
-    // Prefetch prompts to allow synchronous copy
-    const { data: moatData, isLoading: isLoadingMoat } = useQuery({
-        queryKey: ["aiPrompt", symbol, "moat"],
-        queryFn: () => getAIPrompt(symbol, "moat"),
-        staleTime: Infinity, // Prompts don't change often
+    // Track whether scores came from AI (not user-overridden)
+    const [moatIsAI, setMoatIsAI] = useState(() => savedMoatAI !== null);
+    const [riskIsAI, setRiskIsAI] = useState(() => savedRiskAI !== null);
+    // Track if AI results have been auto-applied already
+    const [moatAIApplied, setMoatAIApplied] = useState(false);
+    const [riskAIApplied, setRiskAIApplied] = useState(false);
+
+    // Collapsible state for AI breakdown (default collapsed)
+    const [moatBreakdownOpen, setMoatBreakdownOpen] = useState(false);
+    const [riskBreakdownOpen, setRiskBreakdownOpen] = useState(false);
+
+    // Use saved data or live query data
+    const moatDisplayData = savedMoatAI ?? undefined;
+    const riskDisplayData = savedRiskAI ?? undefined;
+
+    // AI score queries — only fire when no localStorage override AND AI is enabled
+    const shouldFetchMoatAI = aiEnabled && !hasMoatBeenSet;
+    const shouldFetchRiskAI = aiEnabled && !hasRiskBeenSet;
+
+    const { data: moatAIData, isLoading: isLoadingMoatAI } = useQuery({
+        queryKey: ["aiScore", symbol, "moat"],
+        queryFn: () => getAIScore(symbol, "moat"),
+        enabled: shouldFetchMoatAI,
+        staleTime: 300000,
+        retry: false,
     });
 
-    const { data: riskData, isLoading: isLoadingRisk } = useQuery({
+    const { data: riskAIData, isLoading: isLoadingRiskAI } = useQuery({
+        queryKey: ["aiScore", symbol, "risk"],
+        queryFn: () => getAIScore(symbol, "risk"),
+        enabled: shouldFetchRiskAI,
+        staleTime: 300000,
+        retry: false,
+    });
+
+    // Auto-fill from AI results and persist
+    useEffect(() => {
+        if (moatAIData && !moatAIData.manual_entry_required && moatAIData.score != null && !hasMoatBeenSet && !moatAIApplied) {
+            onMoatChange(moatAIData.score, true);
+            onSaveMoatAI(moatAIData);
+            setMoatIsAI(true);
+            setMoatAIApplied(true);
+        }
+    }, [moatAIData, hasMoatBeenSet, moatAIApplied]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    useEffect(() => {
+        if (riskAIData && !riskAIData.manual_entry_required && riskAIData.score != null && !hasRiskBeenSet && !riskAIApplied) {
+            onRiskChange(riskAIData.score, true);
+            onSaveRiskAI(riskAIData);
+            setRiskIsAI(true);
+            setRiskAIApplied(true);
+        }
+    }, [riskAIData, hasRiskBeenSet, riskAIApplied]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Determine the best data source (live query > saved from localStorage)
+    const effectiveMoatData = moatAIData ?? moatDisplayData;
+    const effectiveRiskData = riskAIData ?? riskDisplayData;
+
+    // Show copy prompt button: when AI disabled, OR AI failed, OR user has manually-set non-AI score
+    const showMoatCopyPrompt = !aiEnabled || (moatAIData?.manual_entry_required === true) || (hasMoatBeenSet && !moatIsAI);
+    const showRiskCopyPrompt = !aiEnabled || (riskAIData?.manual_entry_required === true) || (hasRiskBeenSet && !riskIsAI);
+
+    const { data: moatPromptData, isLoading: isLoadingMoatPrompt } = useQuery({
+        queryKey: ["aiPrompt", symbol, "moat"],
+        queryFn: () => getAIPrompt(symbol, "moat"),
+        enabled: showMoatCopyPrompt,
+        staleTime: Infinity,
+    });
+
+    const { data: riskPromptData, isLoading: isLoadingRiskPrompt } = useQuery({
         queryKey: ["aiPrompt", symbol, "risk"],
         queryFn: () => getAIPrompt(symbol, "risk"),
+        enabled: showRiskCopyPrompt,
         staleTime: Infinity,
     });
 
@@ -222,7 +298,6 @@ function MoatRiskInputs({
             }
         } catch (err) {
             console.warn("Clipboard API failed, trying fallback...", err);
-            // Fallback for non-secure contexts or failures
             const textArea = document.createElement("textarea");
             textArea.value = text;
             textArea.style.position = "fixed";
@@ -244,111 +319,210 @@ function MoatRiskInputs({
         setTimeout(() => setCopiedPrompt(null), 2000);
     };
 
-    const isMoatEmpty = !hasMoatBeenSet;
-    const isRiskEmpty = !hasRiskBeenSet;
+    const handleMoatUserChange = (val: number | "") => {
+        setMoatIsAI(false);
+        setMoatBreakdownOpen(false);
+        onMoatChange(val);
+    };
+
+    const handleRiskUserChange = (val: number | "") => {
+        setRiskIsAI(false);
+        setRiskBreakdownOpen(false);
+        onRiskChange(val);
+    };
+
+    const isMoatEmpty = !hasMoatBeenSet && !moatIsAI;
+    const isRiskEmpty = !hasRiskBeenSet && !riskIsAI;
+
+    // Has AI breakdown data to show?
+    const hasMoatBreakdown = moatIsAI && effectiveMoatData?.breakdown && Object.keys(effectiveMoatData.breakdown).length > 0;
+    const hasRiskBreakdown = riskIsAI && effectiveRiskData?.breakdown && Object.keys(effectiveRiskData.breakdown).length > 0;
+
+    // Helper to render AI reasoning/breakdown
+    const renderAIBreakdown = (data: AIScoreResponse | undefined) => {
+        if (!data || !data.breakdown) return null;
+        const entries = Object.entries(data.breakdown as Record<string, { score: number; reasoning: string }>);
+        return (
+            <div className="mt-2 pt-2 border-t border-border/50 space-y-1">
+                {data.reasoning && (
+                    <p className="text-xs text-muted-foreground italic">{data.reasoning}</p>
+                )}
+                {entries.map(([name, detail]) => (
+                    <div key={name} className="flex items-start gap-1 text-xs text-muted-foreground">
+                        <span className="font-medium shrink-0">{name}:</span>
+                        <span>{detail.score} — {detail.reasoning}</span>
+                    </div>
+                ))}
+            </div>
+        );
+    };
 
     return (
         <div className="space-y-3 mt-3">
             {/* Moat Score Row */}
             <div
                 className="p-3 bg-muted/50 rounded-lg"
-                style={isMoatEmpty ? { border: "2px solid #f59e0b" } : undefined}
+                style={isMoatEmpty && !isLoadingMoatAI ? { border: "2px solid #f59e0b" } : undefined}
             >
                 <div className="flex items-center justify-between mb-2">
                     <span className="font-medium text-sm flex items-center gap-2">
                         {t("moat_score")}
+                        {moatIsAI && (
+                            <span className="px-1.5 py-0.5 text-[10px] font-semibold rounded bg-blue-500/15 text-blue-600 dark:text-blue-400">
+                                AI
+                            </span>
+                        )}
                     </span>
                     <div className="flex items-center gap-1">
-                        <input
-                            type="number"
-                            min="0"
-                            max="5"
-                            className="w-12 p-1 h-7 rounded-sm border text-right text-sm bg-background focus:ring-1 focus:ring-primary"
-                            value={localMoatScore}
-                            onChange={(e) => {
-                                const val = e.target.value === "" ? "" : Number(e.target.value);
-                                if (val === "" || (val >= 0 && val <= 5)) {
-                                    onMoatChange(val);
-                                }
-                            }}
-                            placeholder="0"
-                        />
-                        <span className="text-sm font-semibold text-muted-foreground">/5</span>
+                        {isLoadingMoatAI && shouldFetchMoatAI ? (
+                            <div className="flex items-center gap-1.5">
+                                <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-500" />
+                                <span className="text-xs text-muted-foreground">{t("ai_loading")}</span>
+                            </div>
+                        ) : (
+                            <>
+                                <input
+                                    type="number"
+                                    min="0"
+                                    max="5"
+                                    className="w-12 p-1 h-7 rounded-sm border text-right text-sm bg-background focus:ring-1 focus:ring-primary"
+                                    value={localMoatScore}
+                                    onChange={(e) => {
+                                        const val = e.target.value === "" ? "" : Number(e.target.value);
+                                        if (val === "" || (val >= 0 && val <= 5)) {
+                                            handleMoatUserChange(val);
+                                        }
+                                    }}
+                                    placeholder="0"
+                                />
+                                <span className="text-sm font-semibold text-muted-foreground">/5</span>
+                            </>
+                        )}
                     </div>
                 </div>
                 <div className="flex items-center justify-between">
-                    <p className="text-xs text-muted-foreground">
-                        {t("ai_scoring_hint")}
-                    </p>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-7 px-2 text-xs"
-                        onClick={() => moatData && copyToClipboard(moatData.prompt, "moat")}
-                        disabled={isLoadingMoat || !moatData}
-                        title={t("copy_prompt")}
-                    >
-                        {isLoadingMoat ? (
-                            <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                        ) : copiedPrompt === "moat" ? (
-                            <Check className="h-3 w-3 mr-1 text-green-500" />
-                        ) : (
-                            <Copy className="h-3 w-3 mr-1" />
-                        )}
-                        {copiedPrompt === "moat" ? t("copied") : t("copy_prompt")}
-                    </Button>
+                    {moatIsAI ? (
+                        <button
+                            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                            onClick={() => hasMoatBreakdown && setMoatBreakdownOpen(!moatBreakdownOpen)}
+                            disabled={!hasMoatBreakdown}
+                        >
+                            {t("ai_score_auto")}
+                            {hasMoatBreakdown && (
+                                moatBreakdownOpen
+                                    ? <ChevronUp className="h-3 w-3" />
+                                    : <ChevronDown className="h-3 w-3" />
+                            )}
+                        </button>
+                    ) : (
+                        <p className="text-xs text-muted-foreground">
+                            {t("ai_scoring_hint")}
+                        </p>
+                    )}
+                    {showMoatCopyPrompt && (
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 px-2 text-xs"
+                            onClick={() => moatPromptData && copyToClipboard(moatPromptData.prompt, "moat")}
+                            disabled={isLoadingMoatPrompt || !moatPromptData}
+                            title={t("copy_prompt")}
+                        >
+                            {isLoadingMoatPrompt ? (
+                                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                            ) : copiedPrompt === "moat" ? (
+                                <Check className="h-3 w-3 mr-1 text-green-500" />
+                            ) : (
+                                <Copy className="h-3 w-3 mr-1" />
+                            )}
+                            {copiedPrompt === "moat" ? t("copied") : t("copy_prompt")}
+                        </Button>
+                    )}
                 </div>
+                {moatBreakdownOpen && renderAIBreakdown(effectiveMoatData)}
             </div>
 
             {/* Risk Score Row */}
             <div
                 className="p-3 bg-muted/50 rounded-lg"
-                style={isRiskEmpty ? { border: "2px solid #f59e0b" } : undefined}
+                style={isRiskEmpty && !isLoadingRiskAI ? { border: "2px solid #f59e0b" } : undefined}
             >
                 <div className="flex items-center justify-between mb-2">
                     <span className="font-medium text-sm flex items-center gap-2">
                         {t("risk_score")}
+                        {riskIsAI && (
+                            <span className="px-1.5 py-0.5 text-[10px] font-semibold rounded bg-blue-500/15 text-blue-600 dark:text-blue-400">
+                                AI
+                            </span>
+                        )}
                     </span>
                     <div className="flex items-center gap-1">
-                        <input
-                            type="number"
-                            min="-3"
-                            max="0"
-                            className="w-12 p-1 h-7 rounded-sm border text-right text-sm bg-background focus:ring-1 focus:ring-primary"
-                            value={localRiskScore}
-                            onChange={(e) => {
-                                const val = e.target.value === "" ? "" : Number(e.target.value);
-                                if (val === "" || (val >= -3 && val <= 0)) {
-                                    onRiskChange(val);
-                                }
-                            }}
-                            placeholder="0"
-                        />
-                        <span className="text-sm font-semibold text-muted-foreground">/0</span>
+                        {isLoadingRiskAI && shouldFetchRiskAI ? (
+                            <div className="flex items-center gap-1.5">
+                                <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-500" />
+                                <span className="text-xs text-muted-foreground">{t("ai_loading")}</span>
+                            </div>
+                        ) : (
+                            <>
+                                <input
+                                    type="number"
+                                    min="-3"
+                                    max="0"
+                                    className="w-12 p-1 h-7 rounded-sm border text-right text-sm bg-background focus:ring-1 focus:ring-primary"
+                                    value={localRiskScore}
+                                    onChange={(e) => {
+                                        const val = e.target.value === "" ? "" : Number(e.target.value);
+                                        if (val === "" || (val >= -3 && val <= 0)) {
+                                            handleRiskUserChange(val);
+                                        }
+                                    }}
+                                    placeholder="0"
+                                />
+                                <span className="text-sm font-semibold text-muted-foreground">/0</span>
+                            </>
+                        )}
                     </div>
                 </div>
                 <div className="flex items-center justify-between">
-                    <p className="text-xs text-muted-foreground">
-                        {t("ai_scoring_hint")}
-                    </p>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-7 px-2 text-xs"
-                        onClick={() => riskData && copyToClipboard(riskData.prompt, "risk")}
-                        disabled={isLoadingRisk || !riskData}
-                        title={t("copy_prompt")}
-                    >
-                        {isLoadingRisk ? (
-                            <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                        ) : copiedPrompt === "risk" ? (
-                            <Check className="h-3 w-3 mr-1 text-green-500" />
-                        ) : (
-                            <Copy className="h-3 w-3 mr-1" />
-                        )}
-                        {copiedPrompt === "risk" ? t("copied") : t("copy_prompt")}
-                    </Button>
+                    {riskIsAI ? (
+                        <button
+                            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                            onClick={() => hasRiskBreakdown && setRiskBreakdownOpen(!riskBreakdownOpen)}
+                            disabled={!hasRiskBreakdown}
+                        >
+                            {t("ai_score_auto")}
+                            {hasRiskBreakdown && (
+                                riskBreakdownOpen
+                                    ? <ChevronUp className="h-3 w-3" />
+                                    : <ChevronDown className="h-3 w-3" />
+                            )}
+                        </button>
+                    ) : (
+                        <p className="text-xs text-muted-foreground">
+                            {t("ai_scoring_hint")}
+                        </p>
+                    )}
+                    {showRiskCopyPrompt && (
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 px-2 text-xs"
+                            onClick={() => riskPromptData && copyToClipboard(riskPromptData.prompt, "risk")}
+                            disabled={isLoadingRiskPrompt || !riskPromptData}
+                            title={t("copy_prompt")}
+                        >
+                            {isLoadingRiskPrompt ? (
+                                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                            ) : copiedPrompt === "risk" ? (
+                                <Check className="h-3 w-3 mr-1 text-green-500" />
+                            ) : (
+                                <Copy className="h-3 w-3 mr-1" />
+                            )}
+                            {copiedPrompt === "risk" ? t("copied") : t("copy_prompt")}
+                        </Button>
+                    )}
                 </div>
+                {riskBreakdownOpen && renderAIBreakdown(effectiveRiskData)}
             </div>
         </div>
     );
@@ -558,6 +732,18 @@ export function ValueScores({ symbol }: ValueScoresProps) {
     const [manualDividendYears, setManualDividendYears] = useState<number | "">("");
     const [isScoreCardsExpanded, setIsScoreCardsExpanded] = useState(false);
 
+    // Persisted AI response data (for breakdown/reasoning display on revisits)
+    const [savedMoatAI, setSavedMoatAI] = useState<AIScoreResponse | null>(null);
+    const [savedRiskAI, setSavedRiskAI] = useState<AIScoreResponse | null>(null);
+
+    // Query AI config to determine if AI scoring is enabled
+    const { data: aiConfigData } = useQuery({
+        queryKey: ["aiConfig"],
+        queryFn: () => getAIConfig(),
+        staleTime: 300000,
+    });
+    const aiEnabled = aiConfigData?.ai_enabled ?? false;
+
     // Load from localStorage on mount
     useEffect(() => {
         const savedMoat = localStorage.getItem(`moat_${symbol}`);
@@ -586,21 +772,64 @@ export function ValueScores({ symbol }: ValueScoresProps) {
         } else {
             setManualDividendYears("");
         }
+
+        // Load saved AI response data
+        const savedMoatAIStr = localStorage.getItem(`moat_ai_${symbol}`);
+        const savedRiskAIStr = localStorage.getItem(`risk_ai_${symbol}`);
+        if (savedMoatAIStr) {
+            try { setSavedMoatAI(JSON.parse(savedMoatAIStr)); } catch { setSavedMoatAI(null); }
+        } else {
+            setSavedMoatAI(null);
+        }
+        if (savedRiskAIStr) {
+            try { setSavedRiskAI(JSON.parse(savedRiskAIStr)); } catch { setSavedRiskAI(null); }
+        } else {
+            setSavedRiskAI(null);
+        }
     }, [symbol]);
 
     // Save to localStorage
-    const handleMoatChange = (val: number | "") => {
+    const handleMoatChange = (val: number | "", isAI?: boolean) => {
         setLocalMoatScore(val);
         setHasMoatBeenSet(true);
-        if (val === "") localStorage.removeItem(`moat_${symbol}`);
-        else localStorage.setItem(`moat_${symbol}`, String(val));
+        if (val === "") {
+            localStorage.removeItem(`moat_${symbol}`);
+            localStorage.removeItem(`moat_ai_${symbol}`);
+            setSavedMoatAI(null);
+        } else {
+            localStorage.setItem(`moat_${symbol}`, String(val));
+            // If manually changed (not AI), clear AI data
+            if (!isAI) {
+                localStorage.removeItem(`moat_ai_${symbol}`);
+                setSavedMoatAI(null);
+            }
+        }
     };
 
-    const handleRiskChange = (val: number | "") => {
+    const handleRiskChange = (val: number | "", isAI?: boolean) => {
         setLocalRiskScore(val);
         setHasRiskBeenSet(true);
-        if (val === "") localStorage.removeItem(`risk_${symbol}`);
-        else localStorage.setItem(`risk_${symbol}`, String(val));
+        if (val === "") {
+            localStorage.removeItem(`risk_${symbol}`);
+            localStorage.removeItem(`risk_ai_${symbol}`);
+            setSavedRiskAI(null);
+        } else {
+            localStorage.setItem(`risk_${symbol}`, String(val));
+            if (!isAI) {
+                localStorage.removeItem(`risk_ai_${symbol}`);
+                setSavedRiskAI(null);
+            }
+        }
+    };
+
+    const handleSaveMoatAI = (data: AIScoreResponse) => {
+        setSavedMoatAI(data);
+        localStorage.setItem(`moat_ai_${symbol}`, JSON.stringify(data));
+    };
+
+    const handleSaveRiskAI = (data: AIScoreResponse) => {
+        setSavedRiskAI(data);
+        localStorage.setItem(`risk_ai_${symbol}`, JSON.stringify(data));
     };
 
     const handleDividendYearsChange = (val: number | "") => {
@@ -783,6 +1012,11 @@ export function ValueScores({ symbol }: ValueScoresProps) {
                                     hasRiskBeenSet={hasRiskBeenSet}
                                     onMoatChange={handleMoatChange}
                                     onRiskChange={handleRiskChange}
+                                    aiEnabled={aiEnabled}
+                                    savedMoatAI={savedMoatAI}
+                                    savedRiskAI={savedRiskAI}
+                                    onSaveMoatAI={handleSaveMoatAI}
+                                    onSaveRiskAI={handleSaveRiskAI}
                                 />
                             ),
                         },

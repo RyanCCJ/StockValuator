@@ -66,8 +66,12 @@ class Settings(BaseSettings):
     mail_starttls: bool = True
     mail_ssl_tls: bool = False
 
-    # AI Scoring (OpenAI)
+    # AI Scoring
+    ai_provider: str = ""  # "openai", "anthropic", or "gemini"; empty = disabled
+    ai_model: str = ""  # Override default model for selected provider
     openai_api_key: str = ""
+    anthropic_api_key: str = ""
+    gemini_api_key: str = ""
 
     @property
     def celery_broker(self) -> str:

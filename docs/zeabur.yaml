@@ -26,6 +26,26 @@ spec:
           type: PASSWORD
           name: Google Client Secret
           description: OAuth Client Secret from Google Cloud Console.
+        - key: AI_PROVIDER
+          type: STRING
+          name: AI Provider
+          description: "AI scoring provider: openai, anthropic, or gemini. Leave empty to disable."
+        - key: AI_MODEL
+          type: STRING
+          name: AI Model Override
+          description: "Optional model override (e.g. gpt-5.4-nano, claude-haiku-4-5, gemini-3.1-flash-lite-preview)."
+        - key: OPENAI_API_KEY
+          type: PASSWORD
+          name: OpenAI API Key
+          description: Required if AI_PROVIDER is openai.
+        - key: ANTHROPIC_API_KEY
+          type: PASSWORD
+          name: Anthropic API Key
+          description: Required if AI_PROVIDER is anthropic.
+        - key: GEMINI_API_KEY
+          type: PASSWORD
+          name: Gemini API Key
+          description: Required if AI_PROVIDER is gemini.
     tags:
         - Finance
         - Portfolio
@@ -96,6 +116,16 @@ spec:
                     default: ${GOOGLE_CLIENT_ID}
                 GOOGLE_CLIENT_SECRET:
                     default: ${GOOGLE_CLIENT_SECRET}
+                AI_PROVIDER:
+                    default: ${AI_PROVIDER}
+                AI_MODEL:
+                    default: ${AI_MODEL}
+                OPENAI_API_KEY:
+                    default: ${OPENAI_API_KEY}
+                ANTHROPIC_API_KEY:
+                    default: ${ANTHROPIC_API_KEY}
+                GEMINI_API_KEY:
+                    default: ${GEMINI_API_KEY}
 
         - name: celery-worker
           template: PREBUILT
